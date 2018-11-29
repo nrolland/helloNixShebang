@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i python -p "with python3Packages; [python prettytable]"
+#! nix-shell -i python -p "python3.withPackages (ps: with ps; [ prettytable ])"
 #! nix-shell -I nixpkgs=channel:nixos-18.03
 
 import prettytable
