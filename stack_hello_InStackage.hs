@@ -1,14 +1,18 @@
 #!/usr/bin/env stack
--- stack --resolver lts-12.5 script
+-- stack --resolver lts-14.20 script
 
 -- or
 {- stack
   script
-  --resolver lts-6.5
+  --resolver lts-14.20
   --package turtle
   --package "stm async"
   --package http-client,http-conduit
 -}
+
+-- this script makes use of the http-client library, which is in stackage
+
+
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Simple

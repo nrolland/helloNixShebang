@@ -1,9 +1,8 @@
-#! /usr/bin/env cabal
-{- cabal:
-index-state: 2016-09-15T12:00:00Z
-with-compiler: ghc-8.0.1
-build-depends: base, type-level-sets
--}
+#!/usr/bin/env stack
+-- stack --resolver lts-14.20 script --package type-level-sets
+
+-- (the package type-level-sets is not in stackage)
+
 
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeOperators #-}
@@ -31,6 +30,3 @@ main = do
   let lst = Ext "hello" $ Ext 10 $ Empty
   putStrLn $ show $ get @String lst
 
--- Local Variables:
---  haskell-compile-command: "./Main.hs"
--- End:

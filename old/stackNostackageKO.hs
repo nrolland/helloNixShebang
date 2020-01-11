@@ -1,12 +1,11 @@
 #!/usr/bin/env stack
--- stack --resolver lts-9.21 script --package type-level-sets
+-- stack --resolver lts-14.20 script --package type-level-sets
 
 
--- this fails as a strcipt with
+-- this used to fail as a script with
 --     Local packages are not allowed when using the script command. Packages found:
 --     type-level-sets-0.8.7.0
-
--- but it can be launched as
+-- but could be launched as
 -- stack --resolver lts-9.21 runghc --package http-conduit --package type-level-sets -- stacknostackage.hs
 
 {-# LANGUAGE PolyKinds #-}

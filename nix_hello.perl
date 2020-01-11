@@ -1,6 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i perl -p perl perlPackages.HTMLTokeParserSimple perlPackages.LWP
-#! nix-shell -I nixpkgs=channel:nixos-18.03
+#! nix-shell -I nixpkgs=channel:nixos-19.09
 
 use HTML::TokeParser::Simple;
 

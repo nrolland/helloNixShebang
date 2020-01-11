@@ -1,8 +1,12 @@
-#! /usr/bin/env nix-shell
-#! nix-shell -i runghc -p "haskellPackages.ghcWithPackages(p: with p; [type-level-sets])"
-#! nix-shell -I nixpkgs=channel:nixos-18.03
+#! /usr/bin/env cabal
+{- cabal:
+index-state: 2019-01-02T10:01:10Z
+with-compiler: ghc-8.0.1
+build-depends: base, type-level-sets
+-}
 
--- courtesy jyrimatti https://gist.github.com/jyrimatti/bd139e91ed257d37bc57c08ac505fc3f
+-- Can't find information on how to use cabal script mode ATM. might fail
+
 
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeOperators #-}
@@ -17,15 +21,19 @@ module Main where
 import Data.Type.Set (Set(..), Proxy(..))
 
 class Get a s where
- get :: Set s -> a
+  get :: Set s -> a
 
 instance {-# OVERLAPS #-} Get a (a ': s) where
-           get (Ext a _) = a
+  get (Ext a _) = a
 
 instance {-# OVERLAPPABLE #-} Get a s => Get a (b ': s) where
-          get (Ext _ xs) = get xs
+  get (Ext _ xs) = get xs
 
 main :: IO ()
 main = do
-let lst = Ext "hello" $ Ext 10 $ Empty
-putStrLn $ show $ get @String lst
+  let lst = Ext "hello" $ Ext 10 $ Empty
+  putStrLn $ show $ get @String lst
+
+-- Local Variables:
+--  haskell-compile-command: "./Main.hs"
+-- End:
