@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-14.20 script --package type-level-sets
+-- stack --resolver lts-18.21 script --package type-level-sets
 
 -- (the package type-level-sets is not in stackage)
 

@@ -1,6 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i runghc -p "haskellPackages.ghcWithPackages(p: with p; [type-level-sets])"
-#! nix-shell -I nixpkgs=channel:nixos-19.09
+#! nix-shell -I nixpkgs=channel:nixos-21.11
 
 -- courtesy jyrimatti https://gist.github.com/jyrimatti/bd139e91ed257d37bc57c08ac505fc3f
 
