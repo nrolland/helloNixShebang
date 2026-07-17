@@ -20,10 +20,29 @@ jobs:
 
       - uses: haskell-actions/setup@v2
         with:
-          ghc-version: "9.2"
-          cabal-version: "3.10"
+          ghc-version: "9.10.3"
+          cabal-version: "3.14"
           enable-stack: true
           stack-version: "latest"
+
+      - name: cabal update
+        # cabal_hello.hs a besoin d'un index Hackage déjà peuplé : le
+        # solveur doit connaître le nom "type-level-sets" avant de le
+        # faire pointer vers le dépôt git via source-repository-package.
+        run: cabal update
+
+      - name: cache stack (~/.stack)
+        # stack_hello_{In,NotIn}Stackage.hs compilent tout le graphe de
+        # dépendances de lts-24.50 (GHC + http-client + tls + ... — une
+        # dizaine de minutes à froid, constaté par exécution). Le cache
+        # rend les runs suivants (dont le cron hebdomadaire) rapides ;
+        # sans lui chaque run repart de zéro sur ce runner éphémère.
+        uses: actions/cache@v4
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-stack-lts-24.50-${{ hashFiles('stack_hello_*.hs') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-lts-24.50-
 
       - name: check.sh
         run: ./check.sh

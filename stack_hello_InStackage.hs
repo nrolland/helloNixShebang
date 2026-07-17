@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-18.21 script
+-- stack --resolver lts-24.50 script
 
 -- this script makes use of the http-client library, which is in stackage
 {-# LANGUAGE OverloadedStrings #-}
