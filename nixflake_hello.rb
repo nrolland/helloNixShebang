@@ -1,0 +1,5 @@
+#!/usr/bin/env nix
+#! nix shell github:NixOS/nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#ruby
+#! nix --command ruby
+
+puts "Hey Nix!"

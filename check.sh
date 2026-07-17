@@ -32,27 +32,24 @@ SCRIPTS=(
   "nix_hello.rb|diff_stdout|expected/nix_hello.rb.out"
   "nix_hello.el|diff_stderr|expected/nix_hello.el.err"
   "nix_hello.perl|exit0_nonempty_stdout|-"
+  "nixflake_hello.rb|diff_stdout|expected/nixflake_hello.rb.out"
+  "nixflake_hello.py|diff_stdout|expected/nixflake_hello.py.out"
   "stack_hello_NotInStackage.hs|diff_stdout|expected/stack_hello_NotInStackage.hs.out"
   "stack_hello_InStackage.hs|exit0_stdout_contains|The status code was: 200"
   "cabal_hello.hs|diff_stdout|expected/cabal_hello.hs.out"
 )
 
 # --- scripts constatés cassés (le harnais les nomme, ne les masque pas) ---
-# cabal_hello.hs   : pinne ghc-8.0.1 (2016), indisponible partout.
-# nix_hello.perl   : nixos.org redirige http -> https depuis ; le nix-shell
-#                     ne tire que perlPackages.LWP (pas LWPProtocolHttps),
-#                     donc la requête échoue après redirection. Rot réel,
-#                     indépendant de l'environnement local vs CI.
-KNOWN_FAILING=(
-  cabal_hello.hs
-  nix_hello.perl
-)
+# (vide depuis le plan 03 — voir docs/plans/03-pins-reifies.md)
+KNOWN_FAILING=()
 
 # Augmentation locale, jamais commitée (voir .gitignore) : un nom de script
-# par ligne. Sert à documenter des échecs propres à CETTE machine (ex :
-# incompatibilité GHC 8.10.7 / Xcode Command Line Tools locaux sur ce Mac,
-# cf. plan 01) sans les faire passer pour des échecs de script en CI, où le
-# fichier est absent et le script tourne pour de vrai. CI fait foi.
+# par ligne. Sert à documenter des échecs propres à CETTE machine sans les
+# faire passer pour des échecs de script en CI, où le fichier est absent et
+# le script tourne pour de vrai. CI fait foi. Vide depuis le plan 03 (le
+# bump du résolveur stack vers lts-24.50 / GHC 9.10.3 a résolu l'échec
+# d'installation GHC constaté sur ce Mac au plan 01 — voir known-failing.local
+# pour l'historique).
 LOCAL_KNOWN_FAILING_FILE=known-failing.local
 if [[ -f "$LOCAL_KNOWN_FAILING_FILE" ]]; then
   while IFS= read -r line; do
@@ -70,10 +67,11 @@ is_known_failing() {
 }
 
 # Bruit de nix-shell à retirer avant un diff_stderr (téléchargements,
-# construction de dérivations, avertissement de dépréciation des channels —
+# construction de dérivations, avertissement de dépréciation des channels,
+# message de chargement du site-start.el injecté par emacsWithPackages —
 # tous non-déterministes ou hors du contrôle du script lui-même).
 filter_nix_noise() {
-  grep -Ev '^(warning:|these [0-9]+ |  /nix/store|copying path|building |querying )' || true
+  grep -Ev '^(warning:|these [0-9]+ |  /nix/store|copying path|building |querying |Loading /nix/store)' || true
 }
 
 FILTER="${1:-}"

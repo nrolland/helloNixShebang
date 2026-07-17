@@ -1,10 +1,12 @@
 #!/usr/bin/env stack
--- stack --resolver lts-18.21 script --package type-level-sets
+-- stack --resolver lts-24.50 script --extra-dep https://github.com/dorchard/type-level-sets/archive/e1ac77f297913087865bc06560e599d1fad04659.tar.gz --package type-level-sets
 
 -- (the package type-level-sets is not in stackage)
+--
+-- type-level-sets-0.8.9.0 (Hackage) ne compile pas avec GHC >= 9.2 (voir
+-- nix_hello.hs) ; --extra-dep pointe sur le commit git qui corrige le
+-- problème, jamais publié sur Hackage.
 
-
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}

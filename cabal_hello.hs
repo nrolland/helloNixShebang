@@ -1,14 +1,21 @@
 #! /usr/bin/env cabal
 {- cabal:
-index-state: 2019-01-02T10:01:10Z
-with-compiler: ghc-8.0.1
+index-state: 2026-07-17T00:00:00Z
+with-compiler: ghc-9.10.3
 build-depends: base, type-level-sets
+source-repository-package
+  type: git
+  location: https://github.com/dorchard/type-level-sets
+  tag: e1ac77f297913087865bc06560e599d1fad04659
 -}
 
--- Can't find information on how to use cabal script mode ATM. might fail
+-- Mode script cabal : voir "cabal run" / "Scripts" dans le cabal user guide
+-- https://cabal.readthedocs.io/en/stable/cabal-commands.html#cabal-run
+--
+-- type-level-sets-0.8.9.0 (Hackage) ne compile pas avec GHC >= 9.2 (voir
+-- nix_hello.hs) ; source-repository-package pointe sur le commit git qui
+-- corrige le problème, jamais publié sur Hackage.
 
-
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
