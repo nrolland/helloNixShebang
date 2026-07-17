@@ -1,3 +1,5 @@
+[![check](https://github.com/nrolland/helloNixShebang/actions/workflows/check.yml/badge.svg)](https://github.com/nrolland/helloNixShebang/actions/workflows/check.yml)
+
 A collection of self-contained scripts, using mostly nix. For more details
 
 - http://chriswarbo.net/projects/nixos/nix_shell_shebangs.html 
