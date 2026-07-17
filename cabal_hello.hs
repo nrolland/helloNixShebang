@@ -1,8 +1,10 @@
 #! /usr/bin/env cabal
 {- cabal:
+build-depends: base, type-level-sets
+-}
+{- project:
 index-state: 2026-07-17T00:00:00Z
 with-compiler: ghc-9.10.3
-build-depends: base, type-level-sets
 source-repository-package
   type: git
   location: https://github.com/dorchard/type-level-sets
@@ -11,10 +13,17 @@ source-repository-package
 
 -- Mode script cabal : voir "cabal run" / "Scripts" dans le cabal user guide
 -- https://cabal.readthedocs.io/en/stable/cabal-commands.html#cabal-run
+-- Deux blocs distincts : "cabal:" pour les champs de paquet (build-depends),
+-- "project:" pour les champs de cabal.project (with-compiler, index-state,
+-- source-repository-package) — les mélanger dans un seul bloc "cabal:" les
+-- fait ignorer silencieusement ("Unknown field"), constaté par exécution.
 --
 -- type-level-sets-0.8.9.0 (Hackage) ne compile pas avec GHC >= 9.2 (voir
 -- nix_hello.hs) ; source-repository-package pointe sur le commit git qui
--- corrige le problème, jamais publié sur Hackage.
+-- corrige le problème, jamais publié sur Hackage. Nécessite un index
+-- Hackage déjà peuplé (`cabal update`) pour que le solveur connaisse le nom
+-- du paquet avant de le faire pointer vers le dépôt git — voir l'étape
+-- dédiée dans le workflow CI.
 
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}

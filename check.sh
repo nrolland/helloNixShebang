@@ -14,7 +14,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-TIMEOUT_S=600
+TIMEOUT_S=1200
 LOG_DIR=logs
 mkdir -p "$LOG_DIR"
 
@@ -26,11 +26,15 @@ mkdir -p "$LOG_DIR"
 #   exit0_nonempty_stdout|-              exit 0 ET stdout non vide (réseau)
 #   exit0_stdout_contains|<sous-chaîne>  exit 0 ET stdout contient la
 #                                        sous-chaîne (réseau)
+#   exit0_stderr_contains|<sous-chaîne>  exit 0 ET stderr contient la
+#                                        sous-chaîne (build depuis les
+#                                        sources parfois, bruit nix-shell
+#                                        trop variable pour un diff exact)
 SCRIPTS=(
   "nix_hello.hs|diff_stdout|expected/nix_hello.hs.out"
   "nix_hello.py|diff_stdout|expected/nix_hello.py.out"
   "nix_hello.rb|diff_stdout|expected/nix_hello.rb.out"
-  "nix_hello.el|diff_stderr|expected/nix_hello.el.err"
+  "nix_hello.el|exit0_stderr_contains|Hi"
   "nix_hello.perl|exit0_nonempty_stdout|-"
   "nixflake_hello.rb|diff_stdout|expected/nixflake_hello.rb.out"
   "nixflake_hello.py|diff_stdout|expected/nixflake_hello.py.out"
@@ -129,6 +133,11 @@ for entry in "${SCRIPTS[@]}"; do
         ;;
       exit0_stdout_contains)
         if [[ $rc -eq 0 ]] && grep -qF "$arg" "$out_file"; then
+          ok=1
+        fi
+        ;;
+      exit0_stderr_contains)
+        if [[ $rc -eq 0 ]] && grep -qF "$arg" "$err_file"; then
           ok=1
         fi
         ;;
