@@ -1,0 +1,36 @@
+name: check
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # lundi 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.2"
+          cabal-version: "3.10"
+          enable-stack: true
+          stack-version: "latest"
+
+      - name: check.sh
+        run: ./check.sh
+
+      - name: upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: logs/

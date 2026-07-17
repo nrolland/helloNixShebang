@@ -1,3 +1,5 @@
 .DS_Store
 result
 dist-newstyle
+logs/
+known-failing.local
