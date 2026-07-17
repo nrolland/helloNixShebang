@@ -1,14 +1,6 @@
 #!/usr/bin/env stack
 -- stack --resolver lts-18.21 script
 
--- or
-{- stack
-  script
-  --resolver lts-14.20
-  --package turtle
-  --package "stm async"
-  --package http-client,http-conduit
--}
 -- this script makes use of the http-client library, which is in stackage
 {-# LANGUAGE OverloadedStrings #-}
 
