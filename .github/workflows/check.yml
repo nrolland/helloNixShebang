@@ -14,6 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: README à jour (garde de fraîcheur)
+        # generate-readme.sh est déterministe (bash+awk) : la matrice du
+        # README doit être son point fixe. Un désaccord signale un
+        # README édité à la main ou un générateur qui n'a pas suivi une
+        # modification de script — voir docs/plans/05-readme-genere.md.
+        run: |
+          ./generate-readme.sh
+          git diff --exit-code README.md
+
       - uses: DeterminateSystems/nix-installer-action@main
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
