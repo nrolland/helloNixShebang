@@ -31,6 +31,20 @@ jobs:
         # faire pointer vers le dépôt git via source-repository-package.
         run: cabal update
 
+      - uses: astral-sh/setup-uv@v8.3.2
+        with:
+          version: "0.11.21"
+
+      - uses: denoland/setup-deno@v2.0.5
+        with:
+          deno-version: "2.8.3"
+
+      - name: install babashka (pinné via nixpkgs, même rev que les shebangs nix)
+        # Pas d'action tierce dédiée assez éprouvée ; nix (déjà installé
+        # ci-dessus) donne le même mécanisme de pin par hash que le reste
+        # du dépôt (voir docs/plans/03-pins-reifies.md).
+        run: nix profile add "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#babashka"
+
       - name: cache stack (~/.stack)
         # stack_hello_{In,NotIn}Stackage.hs compilent tout le graphe de
         # dépendances de lts-24.50 (GHC + http-client + tls + ... — une

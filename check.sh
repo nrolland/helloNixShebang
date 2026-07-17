@@ -41,6 +41,9 @@ SCRIPTS=(
   "stack_hello_NotInStackage.hs|diff_stdout|expected/stack_hello_NotInStackage.hs.out"
   "stack_hello_InStackage.hs|exit0_stdout_contains|The status code was: 200"
   "cabal_hello.hs|diff_stdout|expected/cabal_hello.hs.out"
+  "uv_hello.py|diff_stdout|expected/nix_hello.py.out"
+  "deno_hello.ts|diff_stdout|expected/deno_hello.ts.out"
+  "bb_hello.clj|diff_stdout|expected/bb_hello.clj.out"
 )
 
 # --- scripts constatés cassés (le harnais les nomme, ne les masque pas) ---
