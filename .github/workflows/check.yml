@@ -84,6 +84,18 @@ jobs:
         # paquets évaluent pour aarch64-darwin à cette rev (vérifié).
         run: nix profile add "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#rust-script" "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#cargo" "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#rustc"
 
+      - name: install coreutils sur macOS (fournit GNU `timeout` au harnais)
+        # check.sh borne chaque script avec `timeout "${TIMEOUT_S}s"` (GNU
+        # coreutils). macOS/BSD ne fournit pas `timeout` — il n'existe que
+        # sous le nom `gtimeout` (Homebrew coreutils, absent du runner),
+        # d'où « timeout: command not found » et 15 FAIL à 0s au premier
+        # run. On fournit `timeout` par nix à la même rev pinnée que le
+        # reste du dépôt : cohérent avec le mécanisme de pin par hash, et
+        # symétrique avec la jambe Linux où `timeout` vient de l'OS. macOS
+        # uniquement pour laisser la jambe Linux (déjà verte) intacte.
+        if: runner.os == 'macOS'
+        run: nix profile add "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#coreutils"
+
       - uses: VirtusLab/scala-cli-setup@v1.15.0
         with:
           scala-cli-version: "1.14.0"

@@ -45,6 +45,22 @@ Append-only, une entrée datée par difficulté.
   haskell-actions/setup GHC 9.10.3 sur ARM64, magic-nix-cache, les trois
   `nix profile add`) étaient déjà verts : seul le harnais bloquait.
 
+- **Deuxième run macOS : les 15 scripts FAIL à 0s —
+  `timeout: command not found` (check.sh ligne 123).** Cause : check.sh
+  borne chaque script avec `timeout "${TIMEOUT_S}s"` (GNU coreutils) ;
+  macOS/BSD ne fournit PAS `timeout` (il n'existe que sous le nom
+  `gtimeout` via Homebrew coreutils, absent du runner). Le harnais
+  échouait donc AVANT même de lancer chaque interpréteur (d'où les 0s
+  uniformes). Divergence OS pure : sur Linux `timeout` vient de coreutils
+  système. Corrigé en fournissant `timeout` par nix — step macOS-only
+  `nix profile add nixpkgs/4382ed2b#coreutils` à la rev pinnée du dépôt
+  (cohérent avec le pin par hash, symétrique avec Linux), la jambe Linux
+  déjà verte laissée intacte. `mktemp` (bare) fonctionnait déjà sur le
+  runner macOS — aucune erreur avant la ligne 123 —, donc pas d'autre
+  incompatibilité coreutils à traiter. `~/.nix-profile/bin` est bien en
+  PATH sur macOS (les `nix profile add` de setup avaient réussi), même
+  mécanisme que Linux via nix-installer-action.
+
 ## 2026-07-18 — plan 06 (rust-script + scala-cli)
 
 - **crates.io bloque les requêtes sans `User-Agent` identifiant.** Un
