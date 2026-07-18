@@ -61,6 +61,23 @@ Append-only, une entrée datée par difficulté.
   PATH sur macOS (les `nix profile add` de setup avaient réussi), même
   mécanisme que Linux via nix-installer-action.
 
+- **Troisième run macOS : vert sur les 15 scripts, aucun XFAIL requis.**
+  Une fois les deux incompatibilités du HARNAIS levées (bash 3.2, `timeout`
+  absent), tous les scripts de la matrice passent sur macos-latest (ARM64)
+  comme sur Linux — la promesse « autosuffisant » tient sur les deux OS
+  sans qu'aucun mécanisme soit structurellement incompatible avec le runner
+  macOS. Divergence de TEMPS notable, seule vraie différence par-OS
+  restante : les scripts `stack` compilent tout le graphe de lts-24.50 à
+  froid sur macOS au premier run — `stack_hello_NotInStackage.hs` 356s et
+  `stack_hello_InStackage.hs` 1028s (~17 min) — contre 1s chacun sur Linux
+  où `~/.stack` était déjà chaud (restore-keys d'un run master antérieur).
+  Ce premier run macOS peuple le cache `~/.stack` (clé indexée par
+  `runner.os`), donc les runs macOS suivants (dont le cron hebdomadaire)
+  seront rapides. Autres écarts mineurs de build à froid côté macOS :
+  `nix_hello.hs` 100s (vs 41s), `nix_hello.el` 32s (vs 14s),
+  `scala_hello.scala` 45s (vs 42s) — tous sous le budget. Job macOS total
+  ~34 min, bien sous `timeout-minutes: 120`.
+
 ## 2026-07-18 — plan 06 (rust-script + scala-cli)
 
 - **crates.io bloque les requêtes sans `User-Agent` identifiant.** Un
