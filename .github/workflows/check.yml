@@ -54,6 +54,17 @@ jobs:
         # du dépôt (voir docs/plans/03-pins-reifies.md).
         run: nix profile add "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#babashka"
 
+      - name: install rust-script + cargo/rustc (pinné via nixpkgs, même rev que le reste)
+        # Même raisonnement que babashka ci-dessus : pas de "cargo install"
+        # global (interdit par le plan 06 — non pinné, mute l'état de
+        # l'image), nix donne le pin par hash. cargo/rustc sont nécessaires
+        # pour que rust-script compile le manifest inline.
+        run: nix profile add "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#rust-script" "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#cargo" "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#rustc"
+
+      - uses: VirtusLab/scala-cli-setup@v1.15.0
+        with:
+          scala-cli-version: "1.14.0"
+
       - name: cache stack (~/.stack)
         # stack_hello_{In,NotIn}Stackage.hs compilent tout le graphe de
         # dépendances de lts-24.50 (GHC + http-client + tls + ... — une

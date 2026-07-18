@@ -44,6 +44,8 @@ SCRIPTS=(
   "uv_hello.py|diff_stdout|expected/nix_hello.py.out"
   "deno_hello.ts|diff_stdout|expected/deno_hello.ts.out"
   "bb_hello.clj|diff_stdout|expected/bb_hello.clj.out"
+  "rust_hello.rs|diff_stdout|expected/rust_hello.rs.out"
+  "scala_hello.scala|diff_stdout|expected/scala_hello.scala.out"
 )
 
 # --- scripts constatés cassés (le harnais les nomme, ne les masque pas) ---

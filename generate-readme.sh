@@ -35,6 +35,8 @@ language_of() {
     *.perl) echo "Perl" ;;
     *.ts)   echo "TypeScript" ;;
     *.clj)  echo "Clojure" ;;
+    *.rs)   echo "Rust" ;;
+    *.scala) echo "Scala" ;;
     *)      echo "?" ;;
   esac
 }
@@ -51,6 +53,8 @@ mechanism_of() {
     *"uv run --script") echo "uv (PEP 723)" ;;
     *"deno run"*)      echo "deno" ;;
     *"env bb")         echo "babashka" ;;
+    *"env rust-script") echo "rust-script" ;;
+    *"scala-cli shebang") echo "scala-cli" ;;
     *)                 echo "?" ;;
   esac
 }
@@ -92,6 +96,15 @@ pin_of() {
       pkg=$(grep -oE '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ \{:mvn/version "[^"]+"\}' "$file" | head -n1 \
         | sed -E 's/ \{:mvn\/version "([^"]+)"\}/ @\1/')
       echo "deps.edn runtime: ${pkg}"
+      ;;
+    rust-script)
+      line=$(grep -oE '^//! [A-Za-z0-9_.-]+ = "[^"]+"' "$file" | head -n1)
+      pkg=$(sed -E 's#^//! ([A-Za-z0-9_.-]+) = "=?([^"]+)"#\1@\2#' <<< "$line")
+      echo "Cargo.toml: ${pkg}"
+      ;;
+    scala-cli)
+      pkg=$(grep -oE '^//> using dep .*' "$file" | head -n1 | sed 's#^//> using dep ##')
+      echo "using dep: ${pkg}"
       ;;
     *)
       echo "?"
