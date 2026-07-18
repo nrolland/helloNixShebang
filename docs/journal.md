@@ -3,6 +3,34 @@
 Mémoire des difficultés non triviales rencontrées et de leur résolution.
 Append-only, une entrée datée par difficulté.
 
+## 2026-07-18 — plan 07 (matrice macOS)
+
+- **Extension de `.github/workflows/check.yml` à une matrice
+  `{ubuntu-latest, macos-latest}`** avec `fail-fast: false` (les deux
+  jambes vont au bout et produisent leur table de verdicts, même si l'une
+  échoue) et `timeout-minutes: 120` (le défaut GitHub de 360 min
+  laisserait un run macOS pathologique brûler des heures ; nix sans cache
+  binaire complet et stack qui recompile sont lents à froid sur le runner
+  ARM64).
+
+- **Collision de nom d'artefact en matrice.** `actions/upload-artifact@v4`
+  refuse deux artefacts de même nom ; le nom `logs` fixe aurait fait
+  échouer l'upload de la seconde jambe. Corrigé en `logs-${{ matrix.os }}`.
+
+- **Garde de fraîcheur README limitée à la jambe Linux
+  (`if: runner.os == 'Linux'`).** Le README est un artefact unique
+  indépendant de l'OS ; le vérifier deux fois est redondant et exposerait
+  à une divergence awk BSD (macOS) / GNU (Linux) sans rapport avec la
+  fraîcheur du fichier. Vérifié une seule fois là où le générateur tourne
+  sous awk GNU.
+
+- **Vérification pré-CI de la disponibilité des paquets nix sur
+  aarch64-darwin.** `nix eval nixpkgs/4382ed2b#{babashka,rust-script,cargo,rustc}.drvPath`
+  à la rev pinnée retourne un drvPath valide pour les quatre sur ce Mac
+  ARM — pas de paquet absent pour le système du runner macOS, évite un
+  aller-retour CI gaspillé sur un `nix profile add` qui échouerait à
+  l'évaluation.
+
 ## 2026-07-18 — plan 06 (rust-script + scala-cli)
 
 - **crates.io bloque les requêtes sans `User-Agent` identifiant.** Un

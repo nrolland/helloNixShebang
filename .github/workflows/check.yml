@@ -10,7 +10,22 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # La promesse « scripts autosuffisants » doit tenir sur les deux OS où
+    # les utilisateurs les lancent. La matrice exécute ./check.sh à
+    # l'identique sur Linux et macOS ; fail-fast: false pour que les DEUX
+    # jambes aillent au bout et produisent leur table de verdicts, même si
+    # l'une échoue (la divergence par-OS est la donnée que cette matrice
+    # produit — voir docs/journal.md).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    # macos-latest = runner ARM64 : nix sans cache binaire complet et stack
+    # qui recompile son graphe de dépendances peuvent être lents à froid.
+    # Timeout explicite et généreux (le défaut GitHub de 360 min laisserait
+    # un run pathologique brûler des heures).
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -19,6 +34,12 @@ jobs:
         # README doit être son point fixe. Un désaccord signale un
         # README édité à la main ou un générateur qui n'a pas suivi une
         # modification de script — voir docs/plans/05-readme-genere.md.
+        #
+        # Le README est un artefact unique, indépendant de l'OS : on le
+        # vérifie une seule fois (jambe Linux). L'exécuter aussi sur macOS
+        # serait redondant et exposerait à une divergence awk BSD/GNU sans
+        # rapport avec la fraîcheur du fichier.
+        if: runner.os == 'Linux'
         run: |
           ./generate-readme.sh
           git diff --exit-code README.md
@@ -51,14 +72,16 @@ jobs:
       - name: install babashka (pinné via nixpkgs, même rev que les shebangs nix)
         # Pas d'action tierce dédiée assez éprouvée ; nix (déjà installé
         # ci-dessus) donne le même mécanisme de pin par hash que le reste
-        # du dépôt (voir docs/plans/03-pins-reifies.md).
+        # du dépôt (voir docs/plans/03-pins-reifies.md). Le paquet évalue
+        # pour aarch64-darwin à cette rev (vérifié avant CI).
         run: nix profile add "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#babashka"
 
       - name: install rust-script + cargo/rustc (pinné via nixpkgs, même rev que le reste)
         # Même raisonnement que babashka ci-dessus : pas de "cargo install"
         # global (interdit par le plan 06 — non pinné, mute l'état de
         # l'image), nix donne le pin par hash. cargo/rustc sont nécessaires
-        # pour que rust-script compile le manifest inline.
+        # pour que rust-script compile le manifest inline. Les trois
+        # paquets évaluent pour aarch64-darwin à cette rev (vérifié).
         run: nix profile add "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#rust-script" "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#cargo" "nixpkgs/4382ed2b7a6839d4280a9b386db49cbc5907414d#rustc"
 
       - uses: VirtusLab/scala-cli-setup@v1.15.0
@@ -70,7 +93,8 @@ jobs:
         # dépendances de lts-24.50 (GHC + http-client + tls + ... — une
         # dizaine de minutes à froid, constaté par exécution). Le cache
         # rend les runs suivants (dont le cron hebdomadaire) rapides ;
-        # sans lui chaque run repart de zéro sur ce runner éphémère.
+        # sans lui chaque run repart de zéro sur ce runner éphémère. La clé
+        # est déjà indexée par runner.os : caches Linux et macOS distincts.
         uses: actions/cache@v4
         with:
           path: ~/.stack
@@ -85,5 +109,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs
+          name: logs-${{ matrix.os }}
           path: logs/
