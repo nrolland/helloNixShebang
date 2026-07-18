@@ -31,6 +31,20 @@ Append-only, une entrée datée par difficulté.
   aller-retour CI gaspillé sur un `nix profile add` qui échouerait à
   l'évaluation.
 
+- **Premier run macOS : `check.sh` plantait immédiatement sur
+  `KNOWN_FAILING[@]: unbound variable` (ligne 70), 0 verdict émis.** Cause :
+  `/usr/bin/env bash` sur le runner macOS résout vers le bash 3.2 système,
+  qui — sous `set -u` — lève « unbound variable » à l'expansion d'un
+  tableau VIDE `"${KNOWN_FAILING[@]}"`. bash >= 4.4 (jambe Linux) la
+  tolère, d'où une divergence pure macOS/Linux non révélée jusqu'ici.
+  `KNOWN_FAILING` est vide par défaut (`known-failing.local` gitignoré,
+  absent en CI), donc le bug se déclenchait au tout premier script.
+  Corrigé par l'idiome portable `${arr[@]+"${arr[@]}"}` (expansion vide si
+  tableau vide, éléments quotés préservés sinon) — harnais rendu robuste,
+  aucun script de la matrice touché. Tous les steps de setup macOS (dont
+  haskell-actions/setup GHC 9.10.3 sur ARM64, magic-nix-cache, les trois
+  `nix profile add`) étaient déjà verts : seul le harnais bloquait.
+
 ## 2026-07-18 — plan 06 (rust-script + scala-cli)
 
 - **crates.io bloque les requêtes sans `User-Agent` identifiant.** Un

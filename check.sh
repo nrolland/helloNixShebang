@@ -69,7 +69,13 @@ fi
 
 is_known_failing() {
   local name="$1" f
-  for f in "${KNOWN_FAILING[@]}"; do
+  # Idiome sûr pour set -u : sur le bash 3.2 de macOS (résolu par
+  # /usr/bin/env bash sur les runners), l'expansion d'un tableau VIDE
+  # "${arr[@]}" lève "unbound variable" ; bash >= 4.4 (Linux) la tolère.
+  # KNOWN_FAILING est vide par défaut (known-failing.local absent en CI),
+  # donc la forme portable ${arr[@]+"${arr[@]}"} est nécessaire pour que
+  # le harnais tourne sur la jambe macOS de la matrice.
+  for f in ${KNOWN_FAILING[@]+"${KNOWN_FAILING[@]}"}; do
     [[ "$f" == "$name" ]] && return 0
   done
   return 1
