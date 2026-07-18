@@ -95,28 +95,45 @@ for entry in "${SCRIPTS[@]}"; do
     continue
   fi
 
-  out_file=$(mktemp)
-  err_file=$(mktemp)
-  start=$(date +%s)
-  set +e
-  timeout "${TIMEOUT_S}s" "./$name" >"$out_file" 2>"$err_file"
-  rc=$?
-  set -e
-  end=$(date +%s)
-  duration=$((end - start))
-
-  {
-    echo "=== $name (exit=$rc, ${duration}s) ==="
-    echo "--- stdout ---"
-    cat "$out_file"
-    echo "--- stderr ---"
-    cat "$err_file"
-  } > "$LOG_DIR/$name.log"
+  # Les oracles adossés à un service externe (httpbin.org, nixos.org) peuvent
+  # échouer par défaillance transitoire du service, indépendamment du script
+  # — retry borné pour ces classes seulement. Jamais de retry pour un diff
+  # (déterministe : un échec y est un vrai échec) ni après TIMEOUT (le
+  # ré-essai coûterait jusqu'à TIMEOUT_S de plus pour rien).
+  attempts=1
+  case "$class" in
+    exit0_nonempty_stdout|exit0_stdout_contains) attempts=3 ;;
+  esac
 
   ok=0
-  if [[ $rc -eq 124 || $rc -eq 137 ]]; then
-    verdict="TIMEOUT"
-  else
+  verdict=""
+  duration=0
+  : > "$LOG_DIR/$name.log"
+  for (( try=1; try<=attempts; try++ )); do
+    out_file=$(mktemp)
+    err_file=$(mktemp)
+    start=$(date +%s)
+    set +e
+    timeout "${TIMEOUT_S}s" "./$name" >"$out_file" 2>"$err_file"
+    rc=$?
+    set -e
+    end=$(date +%s)
+    duration=$((duration + end - start))
+
+    {
+      echo "=== $name essai $try/$attempts (exit=$rc, $((end - start))s) ==="
+      echo "--- stdout ---"
+      cat "$out_file"
+      echo "--- stderr ---"
+      cat "$err_file"
+    } >> "$LOG_DIR/$name.log"
+
+    if [[ $rc -eq 124 || $rc -eq 137 ]]; then
+      verdict="TIMEOUT"
+      rm -f "$out_file" "$err_file"
+      break
+    fi
+
     case "$class" in
       diff_stdout)
         if [[ $rc -eq 0 ]] && diff -q "$arg" "$out_file" >/dev/null 2>&1; then
@@ -152,6 +169,12 @@ for entry in "${SCRIPTS[@]}"; do
         ;;
     esac
 
+    rm -f "$out_file" "$err_file"
+    [[ $ok -eq 1 ]] && break
+    [[ $try -lt $attempts ]] && sleep 10
+  done
+
+  if [[ "$verdict" != "TIMEOUT" ]]; then
     if [[ $ok -eq 1 ]]; then
       if is_known_failing "$name"; then
         verdict="XPASS"
@@ -166,8 +189,6 @@ for entry in "${SCRIPTS[@]}"; do
       fi
     fi
   fi
-
-  rm -f "$out_file" "$err_file"
 
   printf '%-8s %-32s %ss\n' "$verdict" "$name" "$duration"
   VERDICT_LINES+=("$verdict $name")

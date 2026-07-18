@@ -12,7 +12,10 @@ import Network.HTTP.Simple
 
 main :: IO ()
 main = do
-  response <- httpLBS "http://httpbin.org/get"
+  -- example.com (IANA) plutôt que httpbin.org : l'oracle teste le
+  -- provisioning de http-client par stack, pas la disponibilité d'un
+  -- service d'écho — et httpbin.org rend des 503 par intermittence.
+  response <- httpLBS "http://example.com"
 
   putStrLn $
     "The status code was: "
