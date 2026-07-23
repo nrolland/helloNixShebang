@@ -18,19 +18,45 @@ alimenté — encore peu de lignes, l'honnêteté statistique s'impose).
 ### 1. Objectif décidable
 
 README réorganisé ainsi, dans l'ordre :
-1. **Thèse** (3–5 phrases) : instrument longitudinal, spécimens,
-   échantillonnage hebdomadaire, le journal comme registre des événements de
-   pourriture (lien vers `docs/journal.md`), badge existant conservé.
+1. **Thèse** (3–5 phrases) : le recadrage tient en une phrase — **le contrat
+   de runtime voyage avec le script** (« the runtime contract travels with
+   the script »). Un script exécutable dépend normalement d'un environnement
+   invisible ; ce dépôt rend cet environnement explicite *dans* le script.
+   Ne PAS écrire « sans runtime » (une machine sans runtime n'exécute rien —
+   l'affirmation est littéralement fausse) : chaque spécimen déclare comment
+   obtenir son interpréteur et ses dépendances, et le cron hebdomadaire
+   vérifie si un hôte Linux/macOS frais honore encore ce contrat. Instrument
+   longitudinal, spécimens, échantillonnage hebdomadaire, le journal comme
+   registre des événements de pourriture (lien vers `docs/journal.md`), badge
+   existant conservé. Mentionner que `assemble-scripts.sh` (payload
+   byte-identique) est le **contrôle expérimental** : les différences entre
+   spécimens s'imputent au mécanisme, pas au programme.
 2. **Anatomie d'un script** : UN script annoté ligne à ligne (header : le
    mécanisme et son pin ; payload : le programme partagé) — refléter la
    structure `headers/` ⊕ `payloads/` du plan 08.
 3. **Table A — les mécanismes** (9 lignes, semi-statique, vérifiée) :
    mécanisme | prérequis hôte | ce qui est épinglé | **ce qui ne l'est pas**
-   (résidu).
+   (résidu). Cette **matrice de résidus est la source de vérité unique** de
+   la comparaison. Les quatre catégories de provisioning — (i) environnement
+   complet (shebangs Nix), (ii) toolchain provisionné (stack, uv, scala-cli),
+   (iii) runtime à dépendances inline (deno, babashka), (iv) wrapper autour
+   d'une toolchain présente (cabal, rust-script) — n'apparaissent qu'en
+   **prose de regroupement**, jamais comme partition primaire : plusieurs
+   mécanismes débordent d'une seule case (uv provisionne l'interpréteur ET
+   fait de l'inline ; babashka a un jeu de libs *gelé* dans son binaire, cf.
+   journal). La matrice, elle, exprime ces recouvrements ; la taxonomie sert
+   d'introduction, pas de vérité.
 4. **Table B — les spécimens** (15 lignes, générée) : la table actuelle +
    colonne latence médiane par OS tirée de `data/runs.tsv`.
 5. **Trois lignes de décision** (prose) : quel mécanisme selon le cas.
-6. L'invitation à PR et les liens historiques existants, conservés.
+6. **Limits** (section d'honnêteté, obligatoire) : ce que le dépôt ne
+   prétend PAS — pas de zéro-dépendance (le prérequis bootstrap reste), pas
+   nécessairement hermétique (la CI préinstalle les toolchains ; un script
+   pourrait utiliser un résidu non déclaré — la *preuve à hôte nu* qui
+   mesurerait cette frontière est un travail futur, hors de ce plan), pas
+   nécessairement offline (registres/cache au premier run). Renvoyer à la
+   Table A pour le résidu par mécanisme.
+7. L'invitation à PR et les liens historiques existants, conservés.
 
 Décidable par : `./generate-readme.sh` idempotent (les deux gardes de
 fraîcheur CI passent) ; chaque cellule de la table A vérifiée (voir moyens) ;
