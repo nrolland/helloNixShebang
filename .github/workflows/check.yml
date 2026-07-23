@@ -1,29 +1,69 @@
 name: check
 
 on:
-  # push : uniquement master (le job `record` a besoin de l'événement push
-  # sur master pour alimenter la série `data`). Les branches de feature
-  # tournent via pull_request seul — sinon push+PR doublent chaque run.
-  push:
-    branches: [master]
-    paths-ignore: ["docs/**"]
-  # Les changements purement documentaires (plans, journal) n'affectent ni
-  # les scripts ni le README généré : inutile d'y lancer la matrice 2-OS.
-  pull_request:
-    paths-ignore: ["docs/**"]
+  # Modèle « observatoire » : la CI n'est plus un portail par commit mais un
+  # échantillonnage périodique. Un cron QUOTIDIEN réveille le job `gate`, qui
+  # ne lance la matrice que s'il y a eu un changement dans les dernières 24 h ;
+  # sinon il ne lance rien. Le lundi, la matrice tourne de toute façon (garde
+  # hebdomadaire contre la pourriture externe : un mécanisme peut casser sans
+  # qu'on ait touché au code) et inclut la jambe macOS.
+  #
+  # Le développement ne déclenche AUCUN run (pas de push/pull_request) : c'est
+  # ce qui laissait chaque commit brûler le budget Actions. Retour immédiat en
+  # local via `./check.sh` ; run à la demande via `workflow_dispatch`.
   schedule:
-    # lundi 06:00 UTC
-    - cron: "0 6 * * 1"
+    - cron: "0 6 * * *" # quotidien 06:00 UTC ; le job `gate` décide de lancer ou non
   workflow_dispatch:
+    inputs:
+      macos:
+        description: "Inclure la jambe macOS (coûteuse ×10) en plus de Linux"
+        type: boolean
+        default: false
 
 # Annule un run supersédé par un plus récent du même événement sur la même
-# réf (nouveau commit sur une PR, push master rapproché). La clé inclut
-# event_name pour que le cron hebdomadaire ne soit jamais annulé par un push.
+# réf. La clé inclut event_name pour que le cron ne soit jamais annulé par un
+# dispatch manuel simultané.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  gate:
+    # Portier peu coûteux (quelques secondes, Linux) qui décide s'il faut
+    # lancer la matrice et avec quels OS. Règle : lancer s'il y a eu un commit
+    # sur master dans les dernières 25 h (fenêtre légèrement > 24 h pour ne pas
+    # rater un commit entre deux réveils quotidiens), OU si on est lundi (garde
+    # hebdomadaire), OU sur workflow_dispatch. macOS : le lundi, ou si demandé
+    # explicitement au dispatch. Sépare « valider un changement » (≤ 1×/jour)
+    # de « détecter la pourriture externe » (hebdo) — voir docs/journal.md.
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      macos: ${{ steps.decide.outputs.macos }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_MACOS: ${{ github.event.inputs.macos }}
+        run: |
+          set -euo pipefail
+          dow=$(date -u +%u)                # 1 = lundi ... 7 = dimanche
+          monday=false
+          if [ "$dow" = "1" ]; then monday=true; fi
+          changed=false
+          if [ -n "$(git log --since='25 hours ago' --format=%H)" ]; then changed=true; fi
+          run=false
+          if $changed || $monday || [ "$EVENT" = "workflow_dispatch" ]; then run=true; fi
+          macos=false
+          if $monday; then macos=true; fi
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$DISPATCH_MACOS" = "true" ]; then macos=true; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "macos=$macos" >> "$GITHUB_OUTPUT"
+          echo "décision : run=$run macos=$macos (changed=$changed monday=$monday event=$EVENT)"
+
   check:
     # La promesse « scripts autosuffisants » doit tenir sur les deux OS où
     # les utilisateurs les lancent. La matrice exécute ./check.sh à
@@ -31,10 +71,16 @@ jobs:
     # jambes aillent au bout et produisent leur table de verdicts, même si
     # l'une échoue (la divergence par-OS est la donnée que cette matrice
     # produit — voir docs/journal.md).
+    #
+    # `gate` décide du lancement et de l'inclusion de macOS : Linux seul les
+    # jours avec changement (peu coûteux), Linux + macOS le lundi (×10, réservé
+    # à l'échantillon de portabilité hebdomadaire).
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: ${{ needs.gate.outputs.macos == 'true' && fromJSON('["ubuntu-latest","macos-latest"]') || fromJSON('["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     # macos-latest = runner ARM64 : nix sans cache binaire complet et stack
     # qui recompile son graphe de dépendances peuvent être lents à froid.
@@ -162,20 +208,16 @@ jobs:
           path: logs/
 
   record:
-    # Série temporelle + auto-signalement (plan 09). S'exécute APRÈS les deux
-    # jambes (`needs: check`) et MÊME SI l'une a échoué (`if: always()` — c'est
-    # là qu'enregistrer et signaler est le plus utile). Unique écrivain de la
-    # branche `data` : un seul job après la matrice → pas de course entre OS.
+    # Série temporelle + auto-signalement (plan 09). S'exécute APRÈS la matrice
+    # (`needs: [gate, check]`) et MÊME SI une jambe a échoué (`if: always()` —
+    # c'est là qu'enregistrer et signaler est le plus utile). Unique écrivain de
+    # la branche `data` : un seul job après la matrice → pas de course entre OS.
     #
-    # Jamais sur les runs de PR (bruit) : uniquement schedule, push sur master,
-    # et workflow_dispatch (testabilité).
-    needs: check
-    if: >-
-      always() && (
-        github.event_name == 'schedule' ||
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'push' && github.ref == 'refs/heads/master')
-      )
+    # Ne tourne que si `gate` a lancé la matrice (sinon rien à enregistrer). Les
+    # seuls déclencheurs étant désormais schedule et workflow_dispatch, chaque
+    # run enregistré alimente la série ET peut ouvrir une issue `rot`.
+    needs: [gate, check]
+    if: always() && needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     # Permissions explicites au niveau du job (principe du moindre privilège) :
     # écrire la branche data (contents) et ouvrir/commenter des issues rot.
@@ -190,7 +232,8 @@ jobs:
       - name: télécharger les verdicts des deux jambes
         # `pattern: logs-*` récupère chaque artefact dans son sous-dossier
         # (merge-multiple: false par défaut) : artifacts/logs-<os>/. Robuste à
-        # une jambe manquante (aucune erreur si un seul artefact est présent).
+        # une jambe manquante (aucune erreur si un seul artefact est présent —
+        # le cas courant : les jours sans macOS, seul logs-ubuntu-latest existe).
         uses: actions/download-artifact@v4
         with:
           pattern: logs-*
@@ -200,9 +243,8 @@ jobs:
         run: ./.github/scripts/append-runs.sh artifacts
 
       - name: auto-signalement des pourritures (issues rot)
-        # Seulement sur schedule/workflow_dispatch : le job tourne aussi sur
-        # push master (pour enregistrer la série) mais on n'y ouvre pas
-        # d'issue (le push est déjà observé par son auteur ; l'issue `rot` est
-        # le canal du cron non surveillé).
+        # Sur schedule/workflow_dispatch (les seuls déclencheurs) : pour chaque
+        # FAIL/TIMEOUT, ouvre ou alimente une issue `rot` — le canal du cron
+        # non surveillé.
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: ./.github/scripts/rot-issues.sh artifacts
