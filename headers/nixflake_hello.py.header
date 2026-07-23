@@ -1,0 +1,7 @@
+#!/usr/bin/env nix
+#! nix shell --impure --expr ``
+#! nix with (import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/4382ed2b7a6839d4280a9b386db49cbc5907414d.tar.gz") {});
+#! nix python3.withPackages (ps: with ps; [ prettytable ])
+#! nix ``
+#! nix --command python3
+

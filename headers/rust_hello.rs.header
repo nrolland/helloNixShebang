@@ -1,0 +1,6 @@
+#!/usr/bin/env rust-script
+//! ```cargo
+//! [dependencies]
+//! num-integer = "=0.1.46"
+//! ```
+
