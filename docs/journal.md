@@ -3,6 +3,30 @@
 Mémoire des difficultés non triviales rencontrées et de leur résolution.
 Append-only, une entrée datée par difficulté.
 
+## 2026-07-23 — premier événement de pourriture capté par l'instrument
+
+- **`stack_hello_InStackage.hs` TIMEOUT sur ubuntu (run 30029415240, push
+  master).** Le graphe Stackage lts-24.50 à froid sur ubuntu-latest a dépassé
+  `TIMEOUT_S=1200` et a été tué (verdict `TIMEOUT`, `duration_s=1200`,
+  consigné dans `data/runs.tsv`). Le même spécimen a été mesuré à **1091 s**
+  sur le `workflow_dispatch` juste précédent (2b0e185) : le build à froid est
+  **pile à la frontière du timeout** (1091 s < 1200 s < build suivant). Ce
+  n'est pas une régression du dépôt mais une **propriété mesurée du mécanisme
+  stack** (coût du graphe à froid, variance de cache CI). L'instrument a fait
+  son travail : il a capté l'événement, l'a horodaté, l'a rangé dans la série.
+  Question de réglage laissée à l'owner (hors périmètre du cycle 08–10 clos) :
+  relever `TIMEOUT_S` pour stack, améliorer le taux de hit du cache
+  `~/.stack`, ou accepter la variance comme donnée. Le job `record`
+  (`if: always()`) a bien enregistré la ligne malgré l'échec de la jambe —
+  comportement voulu : c'est là que le record est le plus utile.
+
+- **Sérialisation des écritures concurrentes sur `data` — vérifiée en réel.**
+  Deux merges master rapprochés (#14, #15) ont lancé deux runs `push`
+  concurrents ; leurs deux jobs `record` ont écrit `data/runs.tsv` sans
+  corruption ni doublon (90 lignes = 3 runs distincts × 15 scripts × 2 OS ;
+  `(sha,event)` distincts par run). Le `git pull --rebase` + re-push ×3 du
+  plan 09 a absorbé la course comme prévu.
+
 ## 2026-07-23 — plan 10 (README de l'instrument : anatomie, résidu, latences)
 
 - **Source de vérité de chaque table, et pourquoi deux blocs générés.**
