@@ -3,6 +3,82 @@
 Mémoire des difficultés non triviales rencontrées et de leur résolution.
 Append-only, une entrée datée par difficulté.
 
+## 2026-07-23 — plan 10 (README de l'instrument : anatomie, résidu, latences)
+
+- **Source de vérité de chaque table, et pourquoi deux blocs générés.**
+  `generate-readme.sh` produit désormais DEUX sections encadrées. Table B
+  (spécimens) reste dérivée des scripts + de la table SCRIPTS de `check.sh`,
+  augmentée de deux colonnes de latence. Table A (matrice de résidus) est
+  générée depuis un heredoc `RESIDUE_ROWS` DANS le script : une seule source
+  de vérité, réécrite entre les marqueurs `BEGIN/END GENERATED RESIDUE`. Le
+  bloc de remplacement a été généralisé en fonction `replace_between BEGIN END
+  CONTENU FICHIER`, appelée deux fois ; elle relit le fichier à chaque appel,
+  donc le décalage de lignes du premier remplacement n'affecte pas le second.
+
+- **Latences : instantané FIGÉ, pas lecture live de la branche `data`.** La
+  garde de fraîcheur CI est `./generate-readme.sh && git diff --exit-code
+  README.md`. Si le générateur lisait `data/runs.tsv` en direct (via
+  `git show origin/data:…`), le README dériverait à chaque nouvelle ligne
+  poussée sur `data` et la garde casserait. Les médianes sont donc calculées
+  hors-ligne et collées dans un heredoc `LAT_FACTS` (script⇥os⇥médiane⇥n),
+  rendant le générateur déterministe. `data/runs.tsv` ne vit que sur la
+  branche orpheline `data`, absent de `master` — un instantané figé est de
+  toute façon la seule option compatible avec la garde. Régénération = recalcul
+  des médianes + recollage du heredoc.
+
+- **État des données au moment de la génération.** Branche `data` re-fetchée :
+  30 lignes, UN seul run (`run_id` 30021341170, événement `workflow_dispatch`),
+  15 scripts × 2 OS. Donc **n=1 pour chaque cellule** — affiché tel quel avec
+  son `n=`, sans qualificatif de stabilité (plan). Les deux runs `push`
+  annoncés en vol n'avaient pas encore appendé leurs lignes à l'heure de la
+  génération. Médiane d'un singleton = la valeur. Événements retenus :
+  schedule + push + workflow_dispatch (tous runners hébergés) ; `pull_request`
+  exclu à la source par le job `record`, donc absent du TSV.
+
+- **La variance de cache est DANS l'instantané, pas étiquetée.**
+  `stack_hello_InStackage.hs` mesure 1091 s sur ubuntu (build à froid, cache
+  `~/.stack` absent sur ce `workflow_dispatch`) contre 2 s sur macOS (cache
+  chaud d'un run antérieur) — même script, écart ×545 imputable au seul état
+  du cache, qui n'est pas dans les données. D'où : pas d'étiquette froid/chaud,
+  « durée en CI », et une légende qui renvoie au constat du journal (stack à
+  froid 1028 s sur macOS, plan 07).
+
+- **Cellules de l'ébauche (plan §3) corrigées après vérification.**
+    - *nix shebang natif* — l'ébauche donnait comme résidu « nix ≥ 2.19 »
+      seulement. Vérifié (doc Nix, wiki NixOS) : le shebang interpreter natif
+      exige la NOUVELLE CLI et les flakes — features expérimentales
+      `nix-command` + `flakes` activées (nixflake_hello.py utilise `--expr`,
+      nixflake_hello.rb la forme `github:…`). Résidu corrigé pour l'inclure.
+    - *uv fournit-il Python ?* (point à trancher du plan) — OUI, confirmé
+      (docs.astral.sh/uv) : `uv run` télécharge un Python managé si aucun ne
+      satisfait `requires-python`. `requires-python = ">=3.12"` est une borne
+      INFÉRIEURE : la version exacte flotte. Résidu conservé, incertitude levée.
+    - *scala-cli gère-t-il sa JVM ?* (point à trancher) — OUI, confirmé
+      (scala-cli under-the-hood, coursier) : scala-cli télécharge et déballe
+      une JVM via coursier si aucune n'est présente. La version de JVM n'étant
+      pas épinglée dans le script (`//> using scala` ne pin que Scala), elle
+      flotte. Résidu affirmé, incertitude levée.
+    - *cabal* — ébauche : « cabal binary ET un GHC du bon nom ». Précisé en
+      ajoutant deux résidus grounded (header + journal plan 08) : l'index
+      Hackage doit être peuplé (`cabal update`) avant que le solveur connaisse
+      `type-level-sets`, et la toolchain C/linker de l'hôte est requise pour
+      lier (cabal ne provisionne ni GHC ni le linker). Reste le plus grand
+      résidu des trois Haskell.
+    - *stack* — ajout mineur : le tarball `--extra-dep` (NotInStackage) doit
+      être joignable, au même titre que Hackage/Stackage (grounded : header).
+    - *babashka* (point à trancher « libs gelées ») — confirmé par le journal
+      (plan 04, cheshire bundlé) : le jeu de bibliothèques compilées en dur
+      dépend de la version du binaire `bb` ; son numéro de version est donc un
+      pin implicite. Cellule conservée.
+  Les autres cellules (nix-shell, deno, rust-script) correspondaient à
+  l'ébauche et sont publiées telles quelles.
+
+- **Anatomie : spécimen choisi.** `uv_hello.py` — contrat entièrement
+  contenu dans le fichier (manifeste PEP 723 inline, pin `==` visible) et
+  payload `prettytable.py` PARTAGÉ avec `nix_hello.py` et `nixflake_hello.py`,
+  ce qui matérialise le point du « contrôle expérimental » (même programme,
+  header variable).
+
 ## 2026-07-23 — plan 09 (instrumentation : série temporelle + auto-issues)
 
 - **Schéma de `data/runs.tsv` et sa justification.** Colonnes (TAB) :
