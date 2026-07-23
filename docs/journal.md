@@ -3,6 +3,60 @@
 Mémoire des difficultés non triviales rencontrées et de leur résolution.
 Append-only, une entrée datée par difficulté.
 
+## 2026-07-23 — plan 09 (instrumentation : série temporelle + auto-issues)
+
+- **Schéma de `data/runs.tsv` et sa justification.** Colonnes (TAB) :
+  `utc_date  sha  event  os  script  verdict  duration_s  run_id`. Une ligne
+  par script × OS et par run. `utc_date` en ISO 8601 UTC
+  (`date -u +%Y-%m-%dT%H:%M:%SZ`) — jamais d'heure locale dans les données,
+  sinon la série n'est plus comparable entre runners. `sha` + `run_id`
+  rendent chaque ligne remontable à son commit et à son run GitHub (lien
+  reconstructible). `event` (schedule/push/workflow_dispatch) distingue
+  l'échantillonnage régulier du cron des mesures ponctuelles. `os` +
+  `script` + `verdict` + `duration_s` sont la mesure elle-même. La table
+  vit sur une branche ORPHELINE `data` (créée au premier append si absente,
+  en-tête posé alors) : append-only, découplée de l'historique du code, elle
+  ne pollue pas `master` et se lit indépendamment. Le harnais `check.sh`
+  ne fait qu'ÉMETTRE `logs/verdicts.tsv` (`script  verdict  duration_s`) ;
+  il ne transporte ni n'interprète — isolation mesure / transport / signalement.
+
+- **Orchestration du job `record`.** Un SEUL job, `needs: check`,
+  `if: always() && (schedule || workflow_dispatch || push-sur-master)` : il
+  s'exécute après les deux jambes de la matrice, même si l'une a échoué
+  (c'est le cas où enregistrer et signaler compte le plus), mais jamais sur
+  les runs de PR (bruit). Faire de `record` l'unique écrivain de `data`
+  supprime la course entre OS par construction : au lieu de deux jobs (un
+  par OS) qui pousseraient concurremment sur `data`, un job downstream lit
+  les verdicts des deux jambes via artefacts et écrit une fois. La seule
+  course résiduelle est inter-runs (deux `record` concurrents) — absorbée
+  par re-fetch + re-append + re-push, 3 tentatives, chaque tentative
+  repartant d'un clone frais (donc jamais de double-append).
+
+- **Pièges rencontrés.**
+    - *Transport des verdicts entre jobs = artefacts.* Deux jobs de matrice
+      sur des runners éphémères distincts ne partagent pas de système de
+      fichiers ; le seul canal job→job est l'artefact. L'upload des logs,
+      auparavant `if: failure()`, est passé à `if: always()` — la série
+      enregistre CHAQUE run, pas seulement les échecs, et l'extrait de log
+      d'une future issue `rot` doit exister même quand tout passe. Un seul
+      artefact `logs-<os>` par jambe porte `verdicts.tsv` + les `<script>.log`.
+      Téléchargement via `pattern: logs-*` (sous-dossiers séparés) : robuste
+      à une jambe manquante, l'`os` se lit du nom de dossier (`logs-<os>`).
+    - *Permissions.* `GITHUB_TOKEN` par défaut est en lecture seule sur les
+      workflows durcis ; pousser `data` et ouvrir des issues exige des
+      permissions explicites AU NIVEAU DU JOB `record` (`contents: write`,
+      `issues: write`) — accordées là et nulle part ailleurs (moindre
+      privilège). Push de la branche via un remote `x-access-token:$GH_TOKEN`.
+    - *Dédoublonnage des issues `rot`.* Par SCRIPT (pas par os+verdict) : un
+      même spécimen qui pourrit sur les deux OS ne doit générer qu'une issue.
+      `gh issue list --label rot --state open` filtré sur les titres
+      commençant par `rot: <script> ` ; si présent → commentaire, sinon →
+      création. La logique vit dans `.github/scripts/rot-issues.sh`, testable
+      hors CI avec `DRY_RUN=1` (écho des commandes `gh`, aucune vraie issue) ;
+      testée localement sur un `verdicts.tsv` fabriqué (un PASS ignoré, un
+      FAIL, un TIMEOUT) → un `issue create` par spécimen cassé, extrait de log
+      inclus (repli `(log indisponible)` si le `.log` manque sur une jambe).
+
 ## 2026-07-23 — plan 08 (payload réifié : header ⊕ payload)
 
 - **Table header/payload retenue.** Chaque script = `headers/<script>.header`

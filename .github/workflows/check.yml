@@ -133,9 +133,61 @@ jobs:
       - name: check.sh
         run: ./check.sh
 
-      - name: upload logs on failure
-        if: failure()
+      - name: upload logs + verdicts (toujours)
+        # Toujours, pas seulement sur échec (plan 09) : le job `record` a
+        # besoin des verdicts des DEUX jambes, y compris quand tout passe
+        # (la série temporelle enregistre chaque run, pas seulement les
+        # échecs), et des logs par script pour l'extrait d'une issue `rot`.
+        # logs/ contient verdicts.tsv (émis par check.sh) + <script>.log.
+        # `if: always()` remonte l'artefact même si check.sh a échoué.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ matrix.os }}
           path: logs/
+
+  record:
+    # Série temporelle + auto-signalement (plan 09). S'exécute APRÈS les deux
+    # jambes (`needs: check`) et MÊME SI l'une a échoué (`if: always()` — c'est
+    # là qu'enregistrer et signaler est le plus utile). Unique écrivain de la
+    # branche `data` : un seul job après la matrice → pas de course entre OS.
+    #
+    # Jamais sur les runs de PR (bruit) : uniquement schedule, push sur master,
+    # et workflow_dispatch (testabilité).
+    needs: check
+    if: >-
+      always() && (
+        github.event_name == 'schedule' ||
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/master')
+      )
+    runs-on: ubuntu-latest
+    # Permissions explicites au niveau du job (principe du moindre privilège) :
+    # écrire la branche data (contents) et ouvrir/commenter des issues rot.
+    permissions:
+      contents: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: télécharger les verdicts des deux jambes
+        # `pattern: logs-*` récupère chaque artefact dans son sous-dossier
+        # (merge-multiple: false par défaut) : artifacts/logs-<os>/. Robuste à
+        # une jambe manquante (aucune erreur si un seul artefact est présent).
+        uses: actions/download-artifact@v4
+        with:
+          pattern: logs-*
+          path: artifacts
+
+      - name: appender la série temporelle sur la branche data
+        run: ./.github/scripts/append-runs.sh artifacts
+
+      - name: auto-signalement des pourritures (issues rot)
+        # Seulement sur schedule/workflow_dispatch : le job tourne aussi sur
+        # push master (pour enregistrer la série) mais on n'y ouvre pas
+        # d'issue (le push est déjà observé par son auteur ; l'issue `rot` est
+        # le canal du cron non surveillé).
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: ./.github/scripts/rot-issues.sh artifacts

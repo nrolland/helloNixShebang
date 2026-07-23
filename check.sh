@@ -94,6 +94,15 @@ FILTER="${1:-}"
 overall_exit=0
 declare -a VERDICT_LINES=()
 
+# Série temporelle (plan 09) : en plus du flux humain, une ligne TSV par
+# script, consommée hors du harnais (job `record` de la CI → branche `data`,
+# logique d'issue `rot`). Le harnais ne fait qu'ÉMETTRE la mesure ; il ne la
+# transporte ni ne l'interprète. Vit dans logs/ (gitignoré) et remonte en
+# artefact de CI. Tronqué à chaque run ; une ligne appendée par script à la
+# fin de son exécution (colonnes : script, verdict, durée en secondes).
+VERDICT_TSV="$LOG_DIR/verdicts.tsv"
+: > "$VERDICT_TSV"
+
 for entry in "${SCRIPTS[@]}"; do
   IFS='|' read -r name class arg <<< "$entry"
 
@@ -198,6 +207,7 @@ for entry in "${SCRIPTS[@]}"; do
 
   printf '%-8s %-32s %ss\n' "$verdict" "$name" "$duration"
   VERDICT_LINES+=("$verdict $name")
+  printf '%s\t%s\t%s\n' "$name" "$verdict" "$duration" >> "$VERDICT_TSV"
 
   if [[ "$verdict" == "FAIL" || "$verdict" == "TIMEOUT" ]]; then
     overall_exit=1
