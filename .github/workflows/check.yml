@@ -1,12 +1,27 @@
 name: check
 
 on:
+  # push : uniquement master (le job `record` a besoin de l'événement push
+  # sur master pour alimenter la série `data`). Les branches de feature
+  # tournent via pull_request seul — sinon push+PR doublent chaque run.
   push:
+    branches: [master]
+    paths-ignore: ["docs/**"]
+  # Les changements purement documentaires (plans, journal) n'affectent ni
+  # les scripts ni le README généré : inutile d'y lancer la matrice 2-OS.
   pull_request:
+    paths-ignore: ["docs/**"]
   schedule:
     # lundi 06:00 UTC
     - cron: "0 6 * * 1"
   workflow_dispatch:
+
+# Annule un run supersédé par un plus récent du même événement sur la même
+# réf (nouveau commit sur une PR, push master rapproché). La clé inclut
+# event_name pour que le cron hebdomadaire ne soit jamais annulé par un push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
