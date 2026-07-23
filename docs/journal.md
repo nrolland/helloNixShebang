@@ -3,6 +3,73 @@
 Mémoire des difficultés non triviales rencontrées et de leur résolution.
 Append-only, une entrée datée par difficulté.
 
+## 2026-07-23 — plan 08 (payload réifié : header ⊕ payload)
+
+- **Table header/payload retenue.** Chaque script = `headers/<script>.header`
+  ⊕ `payloads/<payload>`. Le header porte tout le provisioning (shebang,
+  manifests inline, directives de pin, commentaires-rationale du pin, ligne
+  vide de séparation) ; le payload est le programme. `assemble-scripts.sh`
+  (bash 3.2 portable, table script→payload en heredoc + `while read`, pas de
+  tableau associatif) régénère les 15 scripts, pose le bit exécutable, est
+  idempotent. Payloads partagés :
+    - `typelevel-get.hs` ← nix_hello.hs, stack_hello_NotInStackage.hs,
+      cabal_hello.hs
+    - `prettytable.py` ← nix_hello.py, nixflake_hello.py, uv_hello.py
+    - `hello.rb` ← nix_hello.rb, nixflake_hello.rb
+  Singletons : `http-get.hs`, `hello.el`, `hrefs.perl`, `is-odd.ts`,
+  `squares.clj`, `parity.rs`, `parity.scala`.
+
+- **Migration en deux temps, deux commits.** (1) Factorisation à l'identique
+  prouvée par `git diff --exit-code` vide sur les 15 scripts avant toute
+  harmonisation : les payloads Python (×3) et Ruby (×2) étaient DÉJÀ
+  byte-identiques (partagés dès l'étape 1) ; les trois payloads Haskell
+  divergeaient et ont d'abord été extraits per-script
+  (`typelevel-get-{nix,stack,cabal}.hs`). (2) Harmonisation : fusion des trois
+  en `typelevel-get.hs`, le diff des scripts à ce commit EST la liste des
+  divergences résolues.
+
+- **Divergences Haskell résolues à l'étape 2** (toutes sémantiquement neutres —
+  commentaires, espacement, layout ; sortie « hello » inchangée) :
+    - indentation de `get` : nix_hello.hs en décalage irrégulier (1 / 11 / 10
+      espaces) → canonique 2 espaces (majoritaire, layout valide) ;
+    - commentaire de provenance « courtesy jyrimatti … » : présent seulement
+      dans la variante nix → conservé (crédite la source du procédé, appartient
+      au programme) ; gagné par stack et cabal ;
+    - footer emacs « -- Local Variables: … -- End: » : présent seulement dans
+      cabal → retiré (directive d'éditeur, hors programme) ;
+    - fin de fichier : ligne vide finale de la variante stack retirée →
+      canonique un seul saut de ligne final.
+
+- **Surprises de découpe.**
+    - *Manifest à cheval (babashka).* Dans bb_hello.clj le bloc de
+      provisioning est interleavé : `(require deps)` / `(add-deps …)` /
+      `(require math)`, puis le programme. Découpe : les six premières lignes
+      (shebang, blancs, le bloc requires+add-deps) → header ; le `(doseq …)`
+      → payload.
+    - *Deno sans séparateur.* deno_hello.ts n'a pas de ligne vide entre le
+      shebang et le programme, et son `import npm:is-odd` est à la fois la
+      déclaration de dépendance et du code : header = shebang seul, payload =
+      l'import + la boucle (l'import est du programme, pas listé comme item de
+      header dans le plan).
+    - *Fins de fichier.* Les 15 scripts d'origine finissent tous par `\n` ;
+      `head -n K` ⊕ `tail -n +K+1` préserve les octets exactement (y compris un
+      éventuel `\n` final manquant), d'où la factorisation byte-exacte sans
+      manipulation de fin de ligne.
+    - *cabal_hello.hs — particularité machine (pas une régression).* Sur ce Mac,
+      `cabal_hello.hs` FAIL en 0 s : `Cabal-5490 Cannot find the program 'ghc'`
+      — cabal ne provisionne PAS son compilateur (contrairement à
+      stack/nix-shell) et attend `ghc-9.10.3` sur le PATH, absent ici. master
+      échoue à l'identique (vérifié) : indépendant de la factorisation. Documenté
+      dans `known-failing.local` (gitignoré) → XFAIL local ; CI le fait tourner
+      pour de vrai via haskell-actions/setup.
+
+- **Garde de fraîcheur CI.** Ajoutée à `.github/workflows/check.yml` sur la
+  jambe Linux, à côté de la garde README, même logique (artefact indépendant
+  de l'OS, vérifié une seule fois) : `./assemble-scripts.sh` puis
+  `git diff --exit-code` sur les 15 scripts. `generate-readme.sh` reste
+  idempotent (il lit les scripts assemblés, byte-identiques après réassemblage
+  — README inchangé, aucun ajustement du générateur nécessaire).
+
 ## 2026-07-18 — plan 07 (matrice macOS)
 
 - **Extension de `.github/workflows/check.yml` à une matrice

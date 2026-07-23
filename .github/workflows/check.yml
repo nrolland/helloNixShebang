@@ -44,6 +44,22 @@ jobs:
           ./generate-readme.sh
           git diff --exit-code README.md
 
+      - name: scripts assemblés à jour (garde de fraîcheur)
+        # assemble-scripts.sh est déterministe (concaténation header ⊕ payload) :
+        # chacun des 15 scripts de la racine doit être son point fixe. Un
+        # désaccord signale un script édité à la main plutôt que via son header
+        # ou son payload — la propriété « même payload, header variable » cesse
+        # alors d'être garantie. Voir docs/plans/08-payload-reifie.md.
+        #
+        # Comme le README, les scripts sont un artefact indépendant de l'OS : on
+        # les vérifie une seule fois (jambe Linux) — inutile et redondant sur
+        # macOS (assemble-scripts.sh y tourne quand même, en bash 3.2 portable,
+        # au titre de check.sh).
+        if: runner.os == 'Linux'
+        run: |
+          ./assemble-scripts.sh
+          git diff --exit-code *.hs *.py *.rb *.perl *.el *.ts *.clj *.rs *.scala
+
       - uses: DeterminateSystems/nix-installer-action@main
 
       - uses: DeterminateSystems/magic-nix-cache-action@main
