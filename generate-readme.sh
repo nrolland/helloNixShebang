@@ -104,7 +104,7 @@ mechanism_of() {
   first=$(head -n1 "$file")
   case "$first" in
     *"env nix-shell") echo "nix-shell shebang" ;;
-    *"env nix")        echo "nix shebang natif (flake)" ;;
+    *"env nix")        echo "native nix shebang (flake)" ;;
     *"env stack")      echo "stack script" ;;
     *"env cabal")      echo "cabal script" ;;
     *"uv run --script") echo "uv (PEP 723)" ;;
@@ -120,7 +120,7 @@ mechanism_of() {
 pin_of() {
   local file="$1" mech="$2" line hash rev cs deps ver pkg
   case "$mech" in
-    "nix-shell shebang"|"nix shebang natif (flake)")
+    "nix-shell shebang"|"native nix shebang (flake)")
       # scoper la recherche du hash à la ligne qui pin nixpkgs : d'autres
       # lignes du header (ex. fetchTarball d'un paquet override) peuvent
       # contenir un autre hash de 40 caractères hexadécimaux.
@@ -169,48 +169,31 @@ pin_of() {
   esac
 }
 
-# --- 5. oracle déduit de la classe déclarée dans check.sh ------------------
-oracle_of() {
-  local class="$1" arg="$2"
-  case "$class" in
-    diff_stdout|diff_stderr)
-      echo "fichier (\`$arg\`)" ;;
-    exit0_nonempty_stdout)
-      echo "réseau (stdout non vide)" ;;
-    exit0_stdout_contains)
-      echo "réseau (stdout contient « $arg »)" ;;
-    exit0_stderr_contains)
-      echo "réseau (stderr contient « $arg »)" ;;
-    *)
-      echo "?" ;;
-  esac
-}
-
-# --- 6. Table A — matrice de résidus (source de vérité : ce heredoc) -------
-# Vérifiée cellule par cellule (doc outil + comportement CI + docs/journal.md).
-# Aucune cellule ne contient de « | » littéral (incompatible avec le markdown).
+# --- 6. Table A — host-residue matrix (source of truth: this heredoc) ------
+# Verified cell by cell (tool docs + CI behaviour + docs/journal.md).
+# No cell contains a literal "|" (would break the markdown table).
 RESIDUE_ROWS=$(cat <<'ROWS'
-| `nix-shell` shebang | `nix` (store + daemon) | clôture complète par hash nixpkgs : interpréteur, paquets, libs système | binaire `nix` et sa version ; store/daemon ; réseau vers le substituter au premier run |
-| `nix` shebang natif (flake) | `nix` ≥ 2.19, features `nix-command` + `flakes` activées | idem : clôture complète par hash nixpkgs | binaire `nix` ≥ 2.19 avec `nix-command`/`flakes` ; store/daemon ; réseau au premier run |
-| `stack` script | `stack` ; toolchain C/linker | GHC + snapshot Stackage (versions exactes) via `--resolver lts-24.50` | binaire `stack` ; toolchain C/linker de l'hôte (incident Xcode CLT, plan 01) ; Hackage/Stackage et le tarball extra-dep joignables |
-| `cabal` script | `cabal` ; `ghc-9.10.3` sur le PATH ; toolchain C/linker | `index-state` + compilateur nommé (`with-compiler: ghc-9.10.3`) | binaire `cabal` ET un GHC du nom exact déjà présent — cabal ne le provisionne pas (échec local PATH, journal) ; index Hackage peuplé ; toolchain C/linker. Le plus grand résidu des trois Haskell |
-| `uv` (PEP 723) | `uv` | paquets exacts (`prettytable==3.16.0`) | binaire `uv` ; la version exacte de Python flotte dans `requires-python >=3.12` (uv télécharge un Python managé si absent) ; PyPI joignable |
-| `deno` | `deno` | imports directs à version exacte (`npm:is-odd@3.0.1`) | binaire `deno` et sa version ; registres (npm/jsr) joignables au premier run |
-| `babashka` | `bb` | deps Maven à version exacte (`math.numeric-tower 0.1.0`) | binaire `bb`, dont le jeu de bibliothèques compilées en dur dépend de la version (cheshire bundlé, plan 04) ; Maven Central joignable pour la dep ajoutée |
-| `rust-script` | `rust-script` ; `rustc`/`cargo` ; linker | crates à version exacte (`num-integer =0.1.46`) | toute la toolchain Rust (`rustc`/`cargo`, versions flottantes) ; linker de l'hôte ; crates.io joignable |
-| `scala-cli` | `scala-cli` | version Scala (`//> using scala 3.8.3`) + deps (`upickle:4.1.0`) | binaire `scala-cli` — il télécharge sa JVM via coursier si absente (version de JVM non épinglée dans le script) ; Maven Central joignable |
+| `nix-shell` shebang | `nix` (store + daemon) | full closure by nixpkgs hash: interpreter, packages, system libs | the `nix` binary; store/daemon; network to the substituter on first run |
+| native `nix` shebang (flake) | `nix` ≥ 2.19, `nix-command` + `flakes` enabled | same: full closure by nixpkgs hash | `nix` ≥ 2.19 with those features; store/daemon; network on first run |
+| `stack` script | `stack`; C toolchain/linker | GHC + Stackage snapshot (exact versions) via `--resolver lts-24.50` | the `stack` binary; host C toolchain/linker; Hackage/Stackage reachable |
+| `cabal` script | `cabal`; `ghc-9.10.3` on PATH; C toolchain/linker | `index-state` + named compiler (`with-compiler: ghc-9.10.3`) | `cabal` **and** a GHC of the exact name — cabal does not provision it (largest residue of the three Haskell); populated Hackage index |
+| `uv` (PEP 723) | `uv` | exact packages (`prettytable==3.16.0`) | the `uv` binary; exact Python version floats in `requires-python >=3.12` (uv fetches a managed Python if absent); PyPI reachable |
+| `deno` | `deno` | direct imports at exact version (`npm:is-odd@3.0.1`) | the `deno` binary and version; npm/jsr reachable on first run |
+| `babashka` | `bb` | Maven deps at exact version (`math.numeric-tower 0.1.0`) | the `bb` binary — its built-in library set is frozen by version (cheshire is bundled); Maven Central reachable for the added dep |
+| `rust-script` | `rust-script`; `rustc`/`cargo`; linker | crates at exact version (`num-integer =0.1.46`) | the whole Rust toolchain (`rustc`/`cargo`, floating); host linker; crates.io reachable |
+| `scala-cli` | `scala-cli` | Scala version (`//> using scala 3.8.3`) + deps (`upickle:4.1.0`) | the `scala-cli` binary — it fetches its JVM via coursier if absent (JVM version not pinned); Maven Central reachable |
 ROWS
 )
 
 residue=""
-residue+="| Mécanisme | Prérequis hôte | Épinglé | Résidu non épinglé |"$'\n'
+residue+="| Mechanism | Host prerequisite | Pinned | Not pinned (residue) |"$'\n'
 residue+="|---|---|---|---|"$'\n'
 residue+="$RESIDUE_ROWS"$'\n'
 
-# --- 7. Table B — spécimens + latences médianes par OS ----------------------
+# --- 7. Table B — specimens + median CI latency ----------------------------
 rows=""
-rows+="| Script | Langage | Mécanisme | Pin | Oracle | Ubuntu médiane (s) | macOS médiane (s) |"$'\n'
-rows+="|---|---|---|---|---|---|---|"$'\n'
+rows+="| Script | Language | Mechanism | Pins | CI median s (Ubuntu / macOS) |"$'\n'
+rows+="|---|---|---|---|---|"$'\n'
 
 for entry in "${SCRIPT_ENTRIES[@]}"; do
   IFS='|' read -r name class arg <<< "$entry"
@@ -219,11 +202,10 @@ for entry in "${SCRIPT_ENTRIES[@]}"; do
   lang=$(language_of "$name")
   mech=$(mechanism_of "$name")
   pin=$(pin_of "$name" "$mech")
-  oracle=$(oracle_of "$class" "$arg")
   lat_ubuntu=$(latency_cell "$name" ubuntu-latest)
   lat_macos=$(latency_cell "$name" macos-latest)
 
-  rows+="| \`$name\` | $lang | $mech | $pin | $oracle | $lat_ubuntu | $lat_macos |"$'\n'
+  rows+="| \`$name\` | $lang | $mech | $pin | ${lat_ubuntu% (n=*} / ${lat_macos% (n=*} |"$'\n'
 done
 
 # --- 8. remplacement entre marqueurs, préservant le reste du README ---------

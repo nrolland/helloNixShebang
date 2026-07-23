@@ -1,170 +1,124 @@
 [![check](https://github.com/nrolland/helloNixShebang/actions/workflows/check.yml/badge.svg)](https://github.com/nrolland/helloNixShebang/actions/workflows/check.yml)
 
-# Self-sufficient scripts — a longevity instrument
+# Self-sufficient scripts
 
-**The runtime contract travels with the script.** An executable script normally
-depends on an invisible environment — an interpreter, libraries, a toolchain —
-assumed present on the host. This repository makes that environment explicit
-*inside* each script: every specimen declares how to obtain its interpreter and
-its dependencies. It is not "runtime-free" (a machine with no runtime runs
-nothing); it is *runtime-declaring*. The weekly CI cron is the measurement — it
-checks, on a fresh Linux and macOS host, whether each mechanism still honours
-its contract, i.e. still resolves its pinned dependencies and runs, not merely
-that it once did. The events of decay (a channel reaching EOL, an https
-redirect, an unfixed kind bug, an unstable httpbin, bash 3.2 on the macOS
-runner) are the primary product, logged in [`docs/journal.md`](docs/journal.md).
+One executable file that carries its own runtime. The interpreter and the
+dependencies are declared **inside** the script — no separate install, no
+environment to set up first. The same tiny program is shown through nine
+mechanisms (Nix, uv, deno, stack, cabal, babashka, rust-script, scala-cli) so
+you can compare them directly.
 
-**Same program, variable header — a control.** Each specimen re-expresses one
-shared payload under a different self-sufficient header.
-`./assemble-scripts.sh` regenerates every script as
-`headers/<script>.header ⊕ payloads/<payload>`, byte-identical. The shared
-payload is the **experimental control**: because the program is held constant,
-every difference between specimens — latency, host residue, failure mode — is
-attributable to the *mechanism*, not to the program.
+## What one looks like
 
-Background on the Nix shebangs that seeded the collection:
-
-- http://chriswarbo.net/projects/nixos/nix_shell_shebangs.html
-- the ["Use as a interpreter"](https://nix.dev/manual/nix/stable/command-ref/nix-shell.html#use-as-a--interpreter)
-  section of the Nix manual
-
-## Anatomy of one script
-
-Take `uv_hello.py`. The **header** carries the runtime contract; the **payload**
-(`payloads/prettytable.py`, shared with `nix_hello.py` and `nixflake_hello.py`)
-is the program.
+Take `uv_hello.py`. The **header** is the runtime contract; the **payload** is
+the ordinary program.
 
 ```python
-#!/usr/bin/env -S uv run --script   # header — uv is the interpreter (PEP 723 script mode)
-# /// script                        # header — inline dependency manifest (PEP 723)
-# requires-python = ">=3.12"        # header — interpreter constraint: a lower bound (floats)
-# dependencies = [                  # header — dependencies…
-#     "prettytable==3.16.0",        # header — …pinned to an exact version
-# ]                                 # header —
-# ///                               # header — end of manifest
-                                    # (blank line — the header ⊕ payload separator)
-import prettytable                  # payload — the program (identical across the 3 Python specimens)
+#!/usr/bin/env -S uv run --script   # header: uv is the interpreter (PEP 723)
+# /// script                        # header: inline dependency manifest
+# requires-python = ">=3.12"        # header: interpreter constraint
+# dependencies = ["prettytable==3.16.0"]   # header: dependency, exact version
+# ///
+                                    # (blank line: header / payload separator)
+import prettytable                  # payload: the program
 
-# Print a simple table.
 t = prettytable.PrettyTable(["N", "N^2"])
 for n in range(1, 10):
     t.add_row([n, n * n])
-
 print(t)
 ```
 
-The header is the entire contract with the host; the payload is what the
-contract exists to run. Swap the header, keep the payload, and you have another
-row of Table B.
+Swap the header, keep the payload, and you get another row of the table below.
+`./assemble-scripts.sh` builds every script as
+`headers/<script>.header ⊕ payloads/<payload>`, byte-identical — so the payload
+is a constant and every difference between specimens is due to the *mechanism*.
 
-## Table A — mechanisms and host residue
+## Which one to use
 
-For each of the nine mechanisms: what the host must still provide, what the
-header pins, and — the column that matters — **what it does not pin** (the
-residue the host is assumed to supply). This residue matrix is the single
-source of truth of the comparison; read it as the answer to "what is still
-assumed if I run this on a bare host?". Each cell has been verified against the
-tool's documentation, the behaviour observed in CI, and `docs/journal.md`.
+- **Strongest reproducibility, and you control the host** → a Nix shebang. It
+  pins the *entire* closure — interpreter, packages, system libraries — by hash.
+  Needs `nix` on the host; the first run may pull from the cache.
+- **One portable file, modern tooling, minimal footprint** → `uv` (Python),
+  `deno` (TypeScript) or `scala-cli` (Scala). A single binary is the only real
+  prerequisite; it provisions the interpreter/JVM and resolves exactly-pinned
+  dependencies.
+- **The toolchain is already installed, you just want to pin deps** → `cabal`
+  or `rust-script`. Cheapest to adopt, largest residue: the compiler must
+  already be there, and its version floats.
 
-<!-- BEGIN GENERATED RESIDUE -->
-| Mécanisme | Prérequis hôte | Épinglé | Résidu non épinglé |
-|---|---|---|---|
-| `nix-shell` shebang | `nix` (store + daemon) | clôture complète par hash nixpkgs : interpréteur, paquets, libs système | binaire `nix` et sa version ; store/daemon ; réseau vers le substituter au premier run |
-| `nix` shebang natif (flake) | `nix` ≥ 2.19, features `nix-command` + `flakes` activées | idem : clôture complète par hash nixpkgs | binaire `nix` ≥ 2.19 avec `nix-command`/`flakes` ; store/daemon ; réseau au premier run |
-| `stack` script | `stack` ; toolchain C/linker | GHC + snapshot Stackage (versions exactes) via `--resolver lts-24.50` | binaire `stack` ; toolchain C/linker de l'hôte (incident Xcode CLT, plan 01) ; Hackage/Stackage et le tarball extra-dep joignables |
-| `cabal` script | `cabal` ; `ghc-9.10.3` sur le PATH ; toolchain C/linker | `index-state` + compilateur nommé (`with-compiler: ghc-9.10.3`) | binaire `cabal` ET un GHC du nom exact déjà présent — cabal ne le provisionne pas (échec local PATH, journal) ; index Hackage peuplé ; toolchain C/linker. Le plus grand résidu des trois Haskell |
-| `uv` (PEP 723) | `uv` | paquets exacts (`prettytable==3.16.0`) | binaire `uv` ; la version exacte de Python flotte dans `requires-python >=3.12` (uv télécharge un Python managé si absent) ; PyPI joignable |
-| `deno` | `deno` | imports directs à version exacte (`npm:is-odd@3.0.1`) | binaire `deno` et sa version ; registres (npm/jsr) joignables au premier run |
-| `babashka` | `bb` | deps Maven à version exacte (`math.numeric-tower 0.1.0`) | binaire `bb`, dont le jeu de bibliothèques compilées en dur dépend de la version (cheshire bundlé, plan 04) ; Maven Central joignable pour la dep ajoutée |
-| `rust-script` | `rust-script` ; `rustc`/`cargo` ; linker | crates à version exacte (`num-integer =0.1.46`) | toute la toolchain Rust (`rustc`/`cargo`, versions flottantes) ; linker de l'hôte ; crates.io joignable |
-| `scala-cli` | `scala-cli` | version Scala (`//> using scala 3.8.3`) + deps (`upickle:4.1.0`) | binaire `scala-cli` — il télécharge sa JVM via coursier si absente (version de JVM non épinglée dans le script) ; Maven Central joignable |
-<!-- END GENERATED RESIDUE -->
-
-By *provisioning grouping* — a reading aid, not a partition, since several
-mechanisms straddle two cells: (i) **full environment** — the Nix shebangs pin
-interpreter, packages and system libraries by hash; (ii) **provisioned
-toolchain** — `stack`, `uv` and `scala-cli` download their compiler / interpreter
-/ JVM themselves; (iii) **runtime with inline deps** — `deno` and `babashka`
-assume the runtime binary and resolve declared deps at run time; (iv) **wrapper
-over a present toolchain** — `cabal` and `rust-script` require the compiler to
-pre-exist. The overlaps are the point: `uv` provisions the interpreter *and*
-inlines its deps (ii ∩ iii); `babashka` carries a *frozen* library set compiled
-into its binary, so its own version is an implicit pin (cf. cheshire, journal
-plan 04). The taxonomy introduces; the residue matrix decides.
-
-## Table B — specimens and measured CI latency
-
-The 15 specimens, augmented with the **median wall-clock duration measured in
-CI**, per OS, from the longitudinal series in
-[`data/runs.tsv`](https://github.com/nrolland/helloNixShebang/blob/data/data/runs.tsv)
-(orphan `data` branch). Each cell carries its sample size `n=`.
+## The specimens
 
 <!-- BEGIN GENERATED MATRIX -->
-| Script | Langage | Mécanisme | Pin | Oracle | Ubuntu médiane (s) | macOS médiane (s) |
-|---|---|---|---|---|---|---|
-| `nix_hello.hs` | Haskell | nix-shell shebang | nixpkgs@4382ed2b7a68 | fichier (`expected/nix_hello.hs.out`) | 39 (n=1) | 48 (n=1) |
-| `nix_hello.py` | Python | nix-shell shebang | nixpkgs@4382ed2b7a68 | fichier (`expected/nix_hello.py.out`) | 3 (n=1) | 7 (n=1) |
-| `nix_hello.rb` | Ruby | nix-shell shebang | nixpkgs@4382ed2b7a68 | fichier (`expected/nix_hello.rb.out`) | 2 (n=1) | 4 (n=1) |
-| `nix_hello.el` | Emacs Lisp | nix-shell shebang | nixpkgs@4382ed2b7a68 | réseau (stderr contient « Hi ») | 12 (n=1) | 15 (n=1) |
-| `nix_hello.perl` | Perl | nix-shell shebang | nixpkgs@4382ed2b7a68 | réseau (stdout non vide) | 2 (n=1) | 4 (n=1) |
-| `nixflake_hello.rb` | Ruby | nix shebang natif (flake) | nixpkgs@4382ed2b7a68 | fichier (`expected/nixflake_hello.rb.out`) | 1 (n=1) | 1 (n=1) |
-| `nixflake_hello.py` | Python | nix shebang natif (flake) | nixpkgs@4382ed2b7a68 | fichier (`expected/nixflake_hello.py.out`) | 1 (n=1) | 1 (n=1) |
-| `stack_hello_NotInStackage.hs` | Haskell | stack script | resolver lts-24.50 | fichier (`expected/stack_hello_NotInStackage.hs.out`) | 99 (n=1) | 2 (n=1) |
-| `stack_hello_InStackage.hs` | Haskell | stack script | resolver lts-24.50 | réseau (stdout contient « The status code was: 200 ») | 1091 (n=1) | 2 (n=1) |
-| `cabal_hello.hs` | Haskell | cabal script | index-state 2026-07-17T00:00:00Z, ghc-9.10.3 | fichier (`expected/cabal_hello.hs.out`) | 5 (n=1) | 12 (n=1) |
-| `uv_hello.py` | Python | uv (PEP 723) | PEP 723: prettytable==3.16.0 | fichier (`expected/nix_hello.py.out`) | 0 (n=1) | 1 (n=1) |
-| `deno_hello.ts` | TypeScript | deno | import npm:is-odd@3.0.1 | fichier (`expected/deno_hello.ts.out`) | 1 (n=1) | 0 (n=1) |
-| `bb_hello.clj` | Clojure | babashka | deps.edn runtime: org.clojure/math.numeric-tower @0.1.0 | fichier (`expected/bb_hello.clj.out`) | 2 (n=1) | 8 (n=1) |
-| `rust_hello.rs` | Rust | rust-script | Cargo.toml: num-integer@0.1.46 | fichier (`expected/rust_hello.rs.out`) | 3 (n=1) | 7 (n=1) |
-| `scala_hello.scala` | Scala | scala-cli | using dep: com.lihaoyi::upickle:4.1.0 | fichier (`expected/scala_hello.scala.out`) | 36 (n=1) | 49 (n=1) |
+| Script | Language | Mechanism | Pins | CI median s (Ubuntu / macOS) |
+|---|---|---|---|---|
+| `nix_hello.hs` | Haskell | nix-shell shebang | nixpkgs@4382ed2b7a68 | 39 / 48 |
+| `nix_hello.py` | Python | nix-shell shebang | nixpkgs@4382ed2b7a68 | 3 / 7 |
+| `nix_hello.rb` | Ruby | nix-shell shebang | nixpkgs@4382ed2b7a68 | 2 / 4 |
+| `nix_hello.el` | Emacs Lisp | nix-shell shebang | nixpkgs@4382ed2b7a68 | 12 / 15 |
+| `nix_hello.perl` | Perl | nix-shell shebang | nixpkgs@4382ed2b7a68 | 2 / 4 |
+| `nixflake_hello.rb` | Ruby | native nix shebang (flake) | nixpkgs@4382ed2b7a68 | 1 / 1 |
+| `nixflake_hello.py` | Python | native nix shebang (flake) | nixpkgs@4382ed2b7a68 | 1 / 1 |
+| `stack_hello_NotInStackage.hs` | Haskell | stack script | resolver lts-24.50 | 99 / 2 |
+| `stack_hello_InStackage.hs` | Haskell | stack script | resolver lts-24.50 | 1091 / 2 |
+| `cabal_hello.hs` | Haskell | cabal script | index-state 2026-07-17T00:00:00Z, ghc-9.10.3 | 5 / 12 |
+| `uv_hello.py` | Python | uv (PEP 723) | PEP 723: prettytable==3.16.0 | 0 / 1 |
+| `deno_hello.ts` | TypeScript | deno | import npm:is-odd@3.0.1 | 1 / 0 |
+| `bb_hello.clj` | Clojure | babashka | deps.edn runtime: org.clojure/math.numeric-tower @0.1.0 | 2 / 8 |
+| `rust_hello.rs` | Rust | rust-script | Cargo.toml: num-integer@0.1.46 | 3 / 7 |
+| `scala_hello.scala` | Scala | scala-cli | using dep: com.lihaoyi::upickle:4.1.0 | 36 / 49 |
 <!-- END GENERATED MATRIX -->
 
-**Latency legend.** Durations are the median `duration_s` per script × OS over
-complete-run events (schedule, push, workflow_dispatch — all on hosted
-runners). These are *durations in CI*, not cold/warm figures: the cache state
-of the runner is not recorded in the data, so no cell is labelled "cold" or
-"warm". The first run on a host with no cache can be dramatically slower — the
-same `stack_hello_InStackage.hs` measured 2 s on one leg and 1091 s (~18 min)
-on the other in this very snapshot, and the journal records a cold `stack` at
-1028 s on macOS (plan 07). Small-`n` cells are the current reality of a young
-series, not a stability claim.
+*Latencies are the median wall-clock time measured in CI (`schedule` / `push` /
+`workflow_dispatch` runs), from the append-only
+[`data`](https://github.com/nrolland/helloNixShebang/blob/data/data/runs.tsv)
+branch. They are durations in CI, not cold/warm figures — a cache-cold first
+run can be far slower (the same `stack_hello_InStackage.hs` measured 2 s on one
+leg and ~18 min on the other). The series is young, so `n = 1` per cell today.*
 
-Table B is generated by `generate-readme.sh` from the scripts, the oracle table
-in `check.sh`, and a frozen latency snapshot of the `data` branch; Table A is
-generated from a verified facts table in the same script. Both are regenerated
-on every push and CI fails if either drifts from its sources (see
-`.github/workflows/check.yml`). Do not edit between the markers by hand.
+## What each mechanism still assumes
 
-## Which mechanism to choose
+"Self-sufficient" is a spectrum. The column that matters is the **residue** —
+what is *not* pinned, and so is still assumed to be on the host.
 
-- **You control the host and want the strongest reproducibility guarantee** — a
-  Nix shebang: it pins the *entire* closure (interpreter, packages, system
-  libraries) by hash. Cost: the host must have `nix`, and the first run may pull
-  from the substituter.
-- **You want one portable file with a modern tool and minimal host residue** —
-  `uv` (Python), `deno` (TypeScript) or `scala-cli` (Scala): a single binary is
-  the only real prerequisite; it provisions the interpreter / JVM and resolves
-  exactly-pinned dependencies.
-- **The toolchain is already installed and you only need to pin dependencies** —
-  `cabal` or `rust-script`: cheapest to adopt, largest residue (the compiler
-  must pre-exist and its version floats).
+<!-- BEGIN GENERATED RESIDUE -->
+| Mechanism | Host prerequisite | Pinned | Not pinned (residue) |
+|---|---|---|---|
+| `nix-shell` shebang | `nix` (store + daemon) | full closure by nixpkgs hash: interpreter, packages, system libs | the `nix` binary; store/daemon; network to the substituter on first run |
+| native `nix` shebang (flake) | `nix` ≥ 2.19, `nix-command` + `flakes` enabled | same: full closure by nixpkgs hash | `nix` ≥ 2.19 with those features; store/daemon; network on first run |
+| `stack` script | `stack`; C toolchain/linker | GHC + Stackage snapshot (exact versions) via `--resolver lts-24.50` | the `stack` binary; host C toolchain/linker; Hackage/Stackage reachable |
+| `cabal` script | `cabal`; `ghc-9.10.3` on PATH; C toolchain/linker | `index-state` + named compiler (`with-compiler: ghc-9.10.3`) | `cabal` **and** a GHC of the exact name — cabal does not provision it (largest residue of the three Haskell); populated Hackage index |
+| `uv` (PEP 723) | `uv` | exact packages (`prettytable==3.16.0`) | the `uv` binary; exact Python version floats in `requires-python >=3.12` (uv fetches a managed Python if absent); PyPI reachable |
+| `deno` | `deno` | direct imports at exact version (`npm:is-odd@3.0.1`) | the `deno` binary and version; npm/jsr reachable on first run |
+| `babashka` | `bb` | Maven deps at exact version (`math.numeric-tower 0.1.0`) | the `bb` binary — its built-in library set is frozen by version (cheshire is bundled); Maven Central reachable for the added dep |
+| `rust-script` | `rust-script`; `rustc`/`cargo`; linker | crates at exact version (`num-integer =0.1.46`) | the whole Rust toolchain (`rustc`/`cargo`, floating); host linker; crates.io reachable |
+| `scala-cli` | `scala-cli` | Scala version (`//> using scala 3.8.3`) + deps (`upickle:4.1.0`) | the `scala-cli` binary — it fetches its JVM via coursier if absent (JVM version not pinned); Maven Central reachable |
+<!-- END GENERATED RESIDUE -->
 
-## Limits
+Roughly four families, though several straddle two: full-environment (the Nix
+shebangs), provisioned-toolchain (`stack`, `uv`, `scala-cli` fetch their own
+compiler/interpreter/JVM), runtime-with-inline-deps (`deno`, `babashka`), and
+wrapper-over-present-toolchain (`cabal`, `rust-script`). `uv` provisions the
+interpreter *and* inlines its deps; `babashka` carries a frozen library set in
+its binary — the overlaps are the point.
 
-This repository does not claim:
+## How this stays honest
 
-- **zero-dependency** — the bootstrap prerequisite remains: every mechanism
-  assumes at least its own launcher (`nix`, `uv`, `bb`, `stack`, …) on the host.
-  See the "host prerequisite" and "residue" columns of Table A.
-- **hermetic** — CI pre-installs the toolchains (Determinate nix-installer,
-  `haskell-actions/setup`, `nix profile add`); a script could quietly use an
-  undeclared host residue and still pass. The *bare-host proof* that would
-  measure this boundary — running each specimen on a host provisioned with
-  nothing but the launcher — is future work (a plan 11), out of scope here.
-- **offline** — several mechanisms reach a registry or substituter on the first
-  run (see the residue column): nixpkgs cache, PyPI, npm / jsr, Maven Central,
-  Hackage / Stackage, crates.io.
+The repository is also a small longevity instrument. A weekly CI cron re-runs
+every specimen on a fresh Linux and macOS host and checks that each contract
+still resolves and runs — not merely that it once did. Decay events (a channel
+reaching EOL, an https redirect, an unfixed compiler bug, a cold-build timeout)
+are logged in [`docs/journal.md`](docs/journal.md).
+
+It does **not** claim to be zero-dependency (the launcher must exist),
+hermetic (CI pre-installs the toolchains, so a script could quietly use an
+undeclared residue and still pass), or offline (several mechanisms reach a
+registry on the first run).
+
+Background on the Nix shebangs that seeded the collection:
+[chriswarbo.net](http://chriswarbo.net/projects/nixos/nix_shell_shebangs.html)
+and the ["Use as an interpreter"](https://nix.dev/manual/nix/stable/command-ref/nix-shell.html#use-as-a--interpreter)
+section of the Nix manual.
 
 ## Contributing
 
-**Please PR if you want to share more of those.**
+**Please PR if you want to share more of these.**
