@@ -22,13 +22,13 @@ module Main where
 import Data.Type.Set (Set(..), Proxy(..))
 
 class Get a s where
- get :: Set s -> a
+  get :: Set s -> a
 
 instance {-# OVERLAPS #-} Get a (a ': s) where
-           get (Ext a _) = a
+  get (Ext a _) = a
 
 instance {-# OVERLAPPABLE #-} Get a s => Get a (b ': s) where
-          get (Ext _ xs) = get xs
+  get (Ext _ xs) = get xs
 
 main :: IO ()
 main = do

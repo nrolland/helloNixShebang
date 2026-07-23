@@ -25,6 +25,8 @@ source-repository-package
 -- du paquet avant de le faire pointer vers le dépôt git — voir l'étape
 -- dédiée dans le workflow CI.
 
+-- courtesy jyrimatti https://gist.github.com/jyrimatti/bd139e91ed257d37bc57c08ac505fc3f
+
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
@@ -49,7 +51,3 @@ main :: IO ()
 main = do
   let lst = Ext "hello" $ Ext 10 $ Empty
   putStrLn $ show $ get @String lst
-
--- Local Variables:
---  haskell-compile-command: "./Main.hs"
--- End:

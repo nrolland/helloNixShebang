@@ -43,9 +43,9 @@ while read -r script payload; do
   case "$script" in \#*) continue ;; esac
   assemble "$script" "$payload"
 done <<'TABLE'
-nix_hello.hs                  typelevel-get-nix.hs
-stack_hello_NotInStackage.hs  typelevel-get-stack.hs
-cabal_hello.hs                typelevel-get-cabal.hs
+nix_hello.hs                  typelevel-get.hs
+stack_hello_NotInStackage.hs  typelevel-get.hs
+cabal_hello.hs                typelevel-get.hs
 stack_hello_InStackage.hs     http-get.hs
 nix_hello.py                  prettytable.py
 nixflake_hello.py             prettytable.py

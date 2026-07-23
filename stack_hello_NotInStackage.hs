@@ -7,6 +7,8 @@
 -- nix_hello.hs) ; --extra-dep pointe sur le commit git qui corrige le
 -- problème, jamais publié sur Hackage.
 
+-- courtesy jyrimatti https://gist.github.com/jyrimatti/bd139e91ed257d37bc57c08ac505fc3f
+
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
@@ -31,4 +33,3 @@ main :: IO ()
 main = do
   let lst = Ext "hello" $ Ext 10 $ Empty
   putStrLn $ show $ get @String lst
-
